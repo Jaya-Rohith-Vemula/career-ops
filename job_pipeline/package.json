@@ -4,7 +4,8 @@
   "type": "module",
   "scripts": {
     "discover": "node discoveryAgent.js",
-    "daily": "node dailyRunner.js"
+    "daily": "node dailyRunner.js",
+    "export": "node exportJobs.js"
   },
   "dependencies": {
     "better-sqlite3": "^12.11.1",

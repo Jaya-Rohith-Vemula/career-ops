@@ -9,6 +9,7 @@ import {
   flagForRediscovery,
 } from './db/client.js';
 import { runDiscovery } from './discovery/runDiscovery.js';
+import { nowLocalIso, todayLocalDate } from './utils/time.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ERROR_LOG = join(__dirname, 'logs/errors.log');
@@ -23,7 +24,7 @@ const FETCHER_PATHS = {
 const ZERO_DAY_THRESHOLD = 3;
 
 function logError(companyName, reason) {
-  const line = `[${new Date().toISOString()}] ${companyName} — ${reason}\n`;
+  const line = `[${nowLocalIso()}] ${companyName} — ${reason}\n`;
   try {
     appendFileSync(ERROR_LOG, line);
   } catch {
@@ -89,7 +90,7 @@ async function main() {
       c.discoveryStatus === 'active'
   );
 
-  const today = new Date().toISOString().slice(0, 10);
+  const today = todayLocalDate();
   const header = `[${today}] Running pipeline for ${companies.length} compan${companies.length === 1 ? 'y' : 'ies'}...`;
   console.log(header);
   logDaily(header);

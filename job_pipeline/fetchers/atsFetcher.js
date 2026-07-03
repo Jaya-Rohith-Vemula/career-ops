@@ -1,6 +1,7 @@
 import { extractTags } from '../utils/keywords.js';
 import { diffJobIds, recordSnapshot } from '../utils/diff.js';
 import { getCompanyById, upsertJob, deactivateJobs, updateCompany } from '../db/client.js';
+import { nowLocalIso } from '../utils/time.js';
 
 const REQUEST_TIMEOUT_MS = 10000;
 
@@ -68,7 +69,7 @@ async function fetchAtsJobs(platform, slug) {
 }
 
 function syncCompanyJobs(companyId, jobs) {
-  const now = new Date().toISOString();
+  const now = nowLocalIso();
 
   // Defensive: collapse any duplicate jobId entries so reported active/new
   // counts always reflect distinct postings, not raw row count.
@@ -105,7 +106,7 @@ async function fetchAndSync(companyId) {
   const jobs = await fetchAtsJobs(company.atsPlatform, company.atsSlug);
   const result = syncCompanyJobs(companyId, jobs);
 
-  updateCompany(companyId, { lastRunDate: new Date().toISOString() });
+  updateCompany(companyId, { lastRunDate: nowLocalIso() });
 
   return result;
 }

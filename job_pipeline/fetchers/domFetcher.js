@@ -16,6 +16,7 @@ import {
   hasClickOnlyNextControl,
   findClickableNextHandle,
 } from '../utils/pagination.js';
+import { nowLocalIso } from '../utils/time.js';
 
 const REQUEST_TIMEOUT_MS = 10000;
 const USER_AGENT =
@@ -261,7 +262,7 @@ async function fetchJsDomJobs(company) {
 }
 
 function syncCompanyJobs(companyId, jobs) {
-  const now = new Date().toISOString();
+  const now = nowLocalIso();
 
   // Some sources render duplicate rows for the same posting (e.g. Stripe's
   // paginated table repeats ~1/3 of rows) — collapse by jobId so reported
@@ -318,7 +319,7 @@ async function fetchAndSync(companyId) {
 
   const result = syncCompanyJobs(companyId, jobs);
 
-  updateCompany(companyId, { lastRunDate: new Date().toISOString() });
+  updateCompany(companyId, { lastRunDate: nowLocalIso() });
 
   return result;
 }

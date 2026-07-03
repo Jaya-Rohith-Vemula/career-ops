@@ -1,6 +1,7 @@
 import { readFileSync } from 'fs';
 import { runDiscovery } from './discovery/runDiscovery.js';
 import { getCompanyById } from './db/client.js';
+import { todayLocalDate } from './utils/time.js';
 
 function parseArgs(argv) {
   const args = {};
@@ -81,7 +82,7 @@ async function main() {
     process.exit(1);
   }
 
-  const today = new Date().toISOString().slice(0, 10);
+  const today = todayLocalDate();
   console.log(`[${today}] Processing ${names.length} compan${names.length === 1 ? 'y' : 'ies'}...`);
 
   const results = await processCompanies(names, { url: args.url, rediscover: args.rediscover });

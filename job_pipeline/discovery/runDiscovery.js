@@ -4,12 +4,13 @@ import { dirname, join } from 'path';
 import { findCareersPage } from './findCareersPage.js';
 import { detectCategory } from './detectCategory.js';
 import { insertCompany, updateCompany, getCompanyByName } from '../db/client.js';
+import { nowLocalIso } from '../utils/time.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ERROR_LOG = join(__dirname, '../logs/errors.log');
 
 function logError(companyName, reason) {
-  const line = `[${new Date().toISOString()}] ${companyName} — ${reason}\n`;
+  const line = `[${nowLocalIso()}] ${companyName} — ${reason}\n`;
   try {
     appendFileSync(ERROR_LOG, line);
   } catch {
@@ -48,7 +49,7 @@ async function runInitialFetch(companyId, category) {
 }
 
 export async function runDiscovery(companyName, { url: manualUrl } = {}) {
-  const timestamp = new Date().toISOString();
+  const timestamp = nowLocalIso();
 
   try {
     const found = manualUrl

@@ -1,3 +1,4 @@
 node_modules/
 jobs_pipeline.db
 logs/
+all_jobs_export.csv

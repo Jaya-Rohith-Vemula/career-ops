@@ -1,4 +1,5 @@
 import { getLastSnapshot, saveSnapshot } from '../db/client.js';
+import { todayLocalDate } from './time.js';
 
 export function diffJobIds(companyId, currentJobIds) {
   const last = getLastSnapshot(companyId);
@@ -9,6 +10,5 @@ export function diffJobIds(companyId, currentJobIds) {
 }
 
 export function recordSnapshot(companyId, jobIds) {
-  const today = new Date().toISOString().slice(0, 10);
-  saveSnapshot(companyId, today, jobIds);
+  saveSnapshot(companyId, todayLocalDate(), jobIds);
 }
