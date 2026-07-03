@@ -10,6 +10,11 @@ node discoveryAgent.js --name "Stripe"          # discover single company
 node discoveryAgent.js --batch companies.txt    # discover from file
 node discoveryAgent.js --name "Acme" --url "https://acme.com/careers" --rediscover
 node dailyRunner.js                             # run daily pipeline
+
+# Phase 2 — dashboard (Express API + React UI), served at localhost:3000
+npm run dev                        # server (:3000) + Vite dev server (:5173, proxies /api) together
+npm run server                     # API only
+npm --prefix ui run build          # production build; server/index.js then serves ui/dist
 ```
 
 No test runner is configured yet. Verify behavior by running the CLI entry points directly.
@@ -37,6 +42,13 @@ Two CLI entry points orchestrate the pipeline:
 
 **`config.js`** — single source of truth for `DB_PATH` and `STACK_KEYWORDS`. Edit keywords here before first run.
 
+**Phase 2 dashboard** (`server/`, `ui/`): `server/index.js` is an Express app serving `/api/*`
+(routes in `server/routes/`: `jobs.js`, `companies.js`, `runs.js`, `stats.js`) plus the built
+`ui/dist` static files. `server/runManager.js` spawns `discoveryAgent.js`/`dailyRunner.js` as
+background subprocesses and enforces one run at a time. `ui/` is a separate Vite + React app
+(own `package.json`) with pages for Dashboard/Jobs/Companies; `npm run dev` in `ui/` proxies
+`/api` to the Express server for local development.
+
 **Self-healing:** `consecutiveZeroDays >= 3` triggers `flaggedForRediscovery = 1` on a company; `dailyRunner.js` re-runs discovery for that company and resets the counter.
 
 ## Key Constraints
@@ -46,4 +58,4 @@ Two CLI entry points orchestrate the pipeline:
 - Batch runs process companies sequentially (not parallel) to keep Playwright predictable
 - Deduplication key is always `(companyId, jobId)` — never title or URL
 - All timestamps are ISO 8601 strings
-- Phase 2 (Express server + UI) will add a `status` column to `jobs` and read the same DB — don't break that forward-compatibility
+- Phase 2 (Express server + UI, `server/` + `ui/`) is now built: `status` column (`new`/`saved`/`applied`/`dismissed`) added to `jobs`, `db/client.js` gained `getJobs`/`countJobs`/`updateJobStatus`/`getDashboardStats`. The server reads/writes the same `jobs_pipeline.db` — Phase 1 CLI scripts are unchanged. Discovery/daily runs are triggered from the UI as background subprocesses (`server/runManager.js`), one at a time (second trigger while one is active gets a 409) since both scripts write to the same SQLite file and aren't safe to run concurrently.

@@ -1,22 +1,8 @@
-import { appendFileSync } from 'fs';
-import { fileURLToPath } from 'url';
-import { dirname, join } from 'path';
 import { findCareersPage } from './findCareersPage.js';
 import { detectCategory } from './detectCategory.js';
 import { insertCompany, updateCompany, getCompanyByName } from '../db/client.js';
 import { nowLocalIso } from '../utils/time.js';
-
-const __dirname = dirname(fileURLToPath(import.meta.url));
-const ERROR_LOG = join(__dirname, '../logs/errors.log');
-
-function logError(companyName, reason) {
-  const line = `[${nowLocalIso()}] ${companyName} — ${reason}\n`;
-  try {
-    appendFileSync(ERROR_LOG, line);
-  } catch {
-    // logging is best-effort — never let a log write failure crash discovery
-  }
-}
+import { logError, logCompany } from '../utils/logger.js';
 
 function upsertCompany(companyName, data) {
   const existing = getCompanyByName(companyName);
@@ -50,6 +36,7 @@ async function runInitialFetch(companyId, category) {
 
 export async function runDiscovery(companyName, { url: manualUrl } = {}) {
   const timestamp = nowLocalIso();
+  logCompany(companyName, manualUrl ? `discovery requested (manual url: ${manualUrl})` : 'discovery requested');
 
   try {
     const found = manualUrl
@@ -62,6 +49,7 @@ export async function runDiscovery(companyName, { url: manualUrl } = {}) {
         lastDiscoveryDate: timestamp,
       });
       logError(companyName, 'careers page not found (both strategies failed)');
+      logCompany(companyName, 'discovery failed — careers page not found');
       return { name: companyName, status: 'failed', reason: 'careers page not found' };
     }
 
@@ -75,6 +63,7 @@ export async function runDiscovery(companyName, { url: manualUrl } = {}) {
         lastDiscoveryDate: timestamp,
       });
       logError(companyName, `category not detected for ${found.url}`);
+      logCompany(companyName, `discovery failed — category not detected for ${found.url}`);
       return { name: companyName, status: 'failed', reason: 'category not detected', url: found.url };
     }
 
@@ -98,6 +87,11 @@ export async function runDiscovery(companyName, { url: manualUrl } = {}) {
       logError(companyName, `initial fetch skipped — ${fetchResult.reason}`);
     }
 
+    logCompany(
+      companyName,
+      `discovery succeeded — found via ${found.method}, category ${detected.category}, url ${careersUrl}`
+    );
+
     return {
       companyId,
       name: companyName,
@@ -113,6 +107,7 @@ export async function runDiscovery(companyName, { url: manualUrl } = {}) {
       lastDiscoveryDate: timestamp,
     });
     logError(companyName, `unexpected error — ${err.message}`);
+    logCompany(companyName, `discovery failed — unexpected error — ${err.message}`);
     return { name: companyName, status: 'failed', reason: err.message };
   }
 }

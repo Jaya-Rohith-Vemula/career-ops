@@ -36,6 +36,7 @@ CREATE TABLE IF NOT EXISTS jobs (
     dateFirstSeen TEXT,
     dateLastSeen TEXT,
     isActive INTEGER DEFAULT 1,
+    status TEXT DEFAULT 'new',
     UNIQUE(companyId, jobId),
     FOREIGN KEY(companyId) REFERENCES companies(id)
 );

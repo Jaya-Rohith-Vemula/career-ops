@@ -9,7 +9,10 @@ const REQUEST_TIMEOUT_MS = 8000;
 const XHR_LISTEN_MS = 8000;
 
 const ATS_PATTERNS = [
-  { platform: 'greenhouse', host: 'greenhouse.io', slugRegex: /greenhouse\.io\/(?:embed\/job_board\?for=|)([a-z0-9-]+)/i },
+  // The embed script URL has a "/js" segment before the query string
+  // (boards.greenhouse.io/embed/job_board/js?for=slug), not just
+  // "embed/job_board?for=slug" — both forms appear in the wild.
+  { platform: 'greenhouse', host: 'greenhouse.io', slugRegex: /greenhouse\.io\/(?:embed\/job_board(?:\/js)?\?for=|)([a-z0-9-]+)/i },
   { platform: 'lever', host: 'lever.co', slugRegex: /lever\.co\/([a-z0-9-]+)/i },
   { platform: 'ashby', host: 'ashbyhq.com', slugRegex: /ashbyhq\.com\/([a-z0-9-]+)/i },
 ];
@@ -185,6 +188,21 @@ async function detectXhr(careersUrl) {
     page.on('response', async (response) => {
       if (found) return;
       if (isNonJobHost(response.url())) return;
+
+      // A URL matching a known ATS's public API shape (e.g. api.lever.co/v0/postings/...)
+      // is trustworthy on its own — skip the generic JSON-shape heuristic below, which
+      // only recognizes generic title/id/location keys and misses ATS-specific schemas
+      // (e.g. Lever posting objects use `text` for title and nest location under
+      // `categories`, not top-level `title`/`location`).
+      if (matchAtsFromApiUrl(response.url())) {
+        found = {
+          endpoint: response.url(),
+          method: response.request().method(),
+          headers: response.request().headers(),
+        };
+        return;
+      }
+
       const contentType = response.headers()['content-type'] || '';
       if (!contentType.includes('application/json')) return;
       try {
@@ -503,7 +521,13 @@ async function detectCategoryAtUrl(careersUrl) {
 // anthropic.com/careers -> anthropic.com/careers/jobs). If detection finds
 // nothing on the original URL, follow that CTA once and retry there before
 // giving up — bounded to a single hop, not a general-purpose crawler.
-const OPEN_ROLES_LINK_REGEX = /\b(see|explore|view|browse|search)\b[\s\S]{0,20}\b(open\s+)?(role|job|position)s?\b/i;
+// "Join the team/us" is also a common CTA phrasing (e.g. brightedge.com/careers'
+// "Join the Team" button) distinct from the see/explore/view-style phrasing above —
+// it doesn't pair a job-section noun with a discovery verb, so it needs its own branch.
+// A bare "Open Positions" / "Current Openings" button (e.g. alarm.com/careers) is a
+// third distinct shape — no discovery verb at all, just an adjective + job noun.
+const OPEN_ROLES_LINK_REGEX =
+  /\b(see|explore|view|browse|search)\b[\s\S]{0,20}\b(open\s+)?(role|job|position)s?\b|\bjoin\b[\s\S]{0,20}\b(the\s+|our\s+)?team\b|\b(open|current)\b[\s\S]{0,20}\b(role|job|position|opening)s?\b/i;
 const MAX_LINK_TEXT_LENGTH = 60;
 
 async function findOpenRolesLink(careersUrl) {

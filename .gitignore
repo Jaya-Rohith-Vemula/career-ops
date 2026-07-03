@@ -1,2 +1,8 @@
 PIPELINE_WALKTHROUGH_TMP.txt
 .DS_Store
+node_modules/
+jobs_pipeline.db
+jobs_pipeline.db-shm
+jobs_pipeline.db-wal
+logs/
+all_jobs_export.csv

@@ -30,11 +30,12 @@ const LINK_KEYWORDS = [
 ];
 
 function deriveDomain(companyName) {
-  return (
-    companyName
-      .toLowerCase()
-      .replace(/[^a-z0-9]/g, '') + '.com'
-  );
+  // Some companies' names already are a domain (e.g. "Alarm.com") — stripping
+  // the dot and re-appending ".com" would probe an unrelated squatted domain
+  // (alarmcom.com) instead of the real one (alarm.com).
+  const cleaned = companyName.toLowerCase().replace(/[^a-z0-9.]/g, '');
+  if (/\.[a-z]{2,}$/.test(cleaned)) return cleaned;
+  return cleaned.replace(/\./g, '') + '.com';
 }
 
 async function fetchWithTimeout(url, options = {}) {

@@ -3,6 +3,7 @@ import { readFileSync } from 'fs';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 import { DB_PATH } from '../config.js';
+import { todayLocalDate } from '../utils/time.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const schema = readFileSync(join(__dirname, '../schema.sql'), 'utf8');
@@ -10,6 +11,11 @@ const schema = readFileSync(join(__dirname, '../schema.sql'), 'utf8');
 const db = new Database(DB_PATH);
 db.pragma('journal_mode = WAL');
 db.exec(schema);
+
+const jobColumns = db.prepare('PRAGMA table_info(jobs)').all().map((c) => c.name);
+if (!jobColumns.includes('status')) {
+  db.exec("ALTER TABLE jobs ADD COLUMN status TEXT DEFAULT 'new'");
+}
 
 // --- Companies ---
 
@@ -72,6 +78,72 @@ export function upsertJob(data) {
     `INSERT INTO jobs (${cols.join(', ')}) VALUES (${placeholders})
      ON CONFLICT(companyId, jobId) DO UPDATE SET ${updateClause}`
   ).run(data);
+}
+
+function buildJobFilterClause(filters) {
+  const clauses = [];
+  const params = {};
+  if (filters.companyId) {
+    clauses.push('jobs.companyId = @companyId');
+    params.companyId = filters.companyId;
+  }
+  if (filters.status) {
+    clauses.push('jobs.status = @status');
+    params.status = filters.status;
+  }
+  if (filters.tag) {
+    clauses.push('jobs.techStackTags LIKE @tag');
+    params.tag = `%"${filters.tag}"%`;
+  }
+  if (filters.activeOnly) {
+    clauses.push('jobs.isActive = 1');
+  }
+  if (filters.search) {
+    clauses.push('jobs.title LIKE @search');
+    params.search = `%${filters.search}%`;
+  }
+  const where = clauses.length ? `WHERE ${clauses.join(' AND ')}` : '';
+  return { where, params };
+}
+
+export function getJobs(filters = {}) {
+  const { where, params } = buildJobFilterClause(filters);
+  const limit = filters.limit ?? 50;
+  const offset = filters.offset ?? 0;
+  return db.prepare(
+    `SELECT jobs.*, companies.name AS companyName
+     FROM jobs JOIN companies ON companies.id = jobs.companyId
+     ${where}
+     ORDER BY jobs.dateFirstSeen DESC
+     LIMIT @limit OFFSET @offset`
+  ).all({ ...params, limit, offset });
+}
+
+export function countJobs(filters = {}) {
+  const { where, params } = buildJobFilterClause(filters);
+  const row = db.prepare(
+    `SELECT COUNT(*) AS count FROM jobs ${where}`
+  ).get(params);
+  return row.count;
+}
+
+export function updateJobStatus(companyId, jobId, status) {
+  db.prepare(
+    'UPDATE jobs SET status = ? WHERE companyId = ? AND jobId = ?'
+  ).run(status, companyId, jobId);
+}
+
+export function getDashboardStats() {
+  const today = todayLocalDate();
+  const newToday = db.prepare(
+    "SELECT COUNT(*) AS count FROM jobs WHERE dateFirstSeen LIKE ?"
+  ).get(`${today}%`).count;
+  const totalCompanies = db.prepare('SELECT COUNT(*) AS count FROM companies').get().count;
+  const needsAttention = db.prepare(
+    'SELECT COUNT(*) AS count FROM companies WHERE flaggedForRediscovery = 1 OR consecutiveZeroDays > 0'
+  ).get().count;
+  const activeJobs = db.prepare('SELECT COUNT(*) AS count FROM jobs WHERE isActive = 1').get().count;
+  return { newToday, totalCompanies, needsAttention, activeJobs };
 }
 
 export function deactivateJobs(companyId, activeJobIds) {

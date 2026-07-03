@@ -477,6 +477,19 @@ Done. 3 new jobs found today.
 
 ---
 
+## Phase 2 (Built)
+
+> **Implemented as Express API + React (Vite) SPA**, not the single static `ui/index.html`
+> sketched below — same `localhost:3000` target and same read/write access to
+> `jobs_pipeline.db`, but the UI lives in its own `ui/` Vite+React app (own `package.json`,
+> `npm run dev` for local dev with a `/api` proxy to Express, `npm run build` output served as
+> static files by `server/index.js` in production). Discovery/daily runs triggered from the UI
+> run as background subprocesses (`server/runManager.js`), capped at one at a time since both
+> scripts write to the same SQLite file. See `CLAUDE.md` for the up-to-date architecture and
+> commands. (Repo layout note: the pipeline previously lived nested under a `job_pipeline/`
+> subfolder — it has since been flattened to the repo root, so all paths below are relative to
+> `careers-scraper/` directly.)
+
 ## Phase 2 Preview (Do Not Build Yet)
 
 Phase 2 adds a local web app at `localhost:3000`:

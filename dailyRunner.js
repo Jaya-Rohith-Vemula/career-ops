@@ -1,6 +1,3 @@
-import { appendFileSync } from 'fs';
-import { fileURLToPath } from 'url';
-import { dirname, join } from 'path';
 import {
   getCompanies,
   getCompanyById,
@@ -9,11 +6,8 @@ import {
   flagForRediscovery,
 } from './db/client.js';
 import { runDiscovery } from './discovery/runDiscovery.js';
-import { nowLocalIso, todayLocalDate } from './utils/time.js';
-
-const __dirname = dirname(fileURLToPath(import.meta.url));
-const ERROR_LOG = join(__dirname, 'logs/errors.log');
-const DAILY_LOG = join(__dirname, 'logs/daily.log');
+import { todayLocalDate } from './utils/time.js';
+import { logError, logDaily } from './utils/logger.js';
 
 const FETCHER_PATHS = {
   ats: './fetchers/atsFetcher.js',
@@ -22,23 +16,6 @@ const FETCHER_PATHS = {
 };
 
 const ZERO_DAY_THRESHOLD = 3;
-
-function logError(companyName, reason) {
-  const line = `[${nowLocalIso()}] ${companyName} — ${reason}\n`;
-  try {
-    appendFileSync(ERROR_LOG, line);
-  } catch {
-    // logging is best-effort — never let a log write failure crash the run
-  }
-}
-
-function logDaily(line) {
-  try {
-    appendFileSync(DAILY_LOG, line + '\n');
-  } catch {
-    // logging is best-effort
-  }
-}
 
 function categoryDetail(company) {
   if (company.category === 'ats') return `ats/${company.atsPlatform}`;
