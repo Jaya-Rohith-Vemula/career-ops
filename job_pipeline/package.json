@@ -1,0 +1,14 @@
+{
+  "name": "job-pipeline",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "discover": "node discoveryAgent.js",
+    "daily": "node dailyRunner.js"
+  },
+  "dependencies": {
+    "better-sqlite3": "^12.11.1",
+    "cheerio": "^1.2.0",
+    "playwright": "^1.61.1"
+  }
+}

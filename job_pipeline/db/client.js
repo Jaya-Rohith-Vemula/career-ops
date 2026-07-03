@@ -1,0 +1,85 @@
+import Database from 'better-sqlite3';
+import { readFileSync } from 'fs';
+import { fileURLToPath } from 'url';
+import { dirname, join } from 'path';
+import { DB_PATH } from '../config.js';
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const schema = readFileSync(join(__dirname, '../schema.sql'), 'utf8');
+
+const db = new Database(DB_PATH);
+db.pragma('journal_mode = WAL');
+db.exec(schema);
+
+// --- Companies ---
+
+export function insertCompany(data) {
+  const cols = Object.keys(data);
+  const placeholders = cols.map(c => `@${c}`).join(', ');
+  const stmt = db.prepare(
+    `INSERT OR IGNORE INTO companies (${cols.join(', ')}) VALUES (${placeholders})`
+  );
+  const result = stmt.run(data);
+  if (result.lastInsertRowid) return result.lastInsertRowid;
+  return db.prepare('SELECT id FROM companies WHERE name = @name').get({ name: data.name })?.id;
+}
+
+export function getCompanies() {
+  return db.prepare('SELECT * FROM companies').all();
+}
+
+export function getCompanyById(id) {
+  return db.prepare('SELECT * FROM companies WHERE id = ?').get(id);
+}
+
+export function updateCompany(id, data) {
+  const cols = Object.keys(data);
+  const setClause = cols.map(c => `${c} = @${c}`).join(', ');
+  db.prepare(`UPDATE companies SET ${setClause} WHERE id = @id`).run({ ...data, id });
+}
+
+// --- Jobs ---
+
+export function insertJob(data) {
+  const cols = Object.keys(data);
+  const placeholders = cols.map(c => `@${c}`).join(', ');
+  db.prepare(
+    `INSERT OR IGNORE INTO jobs (${cols.join(', ')}) VALUES (${placeholders})`
+  ).run(data);
+}
+
+export function getJobsByCompany(companyId) {
+  return db.prepare('SELECT * FROM jobs WHERE companyId = ?').all(companyId);
+}
+
+// --- Snapshots ---
+
+export function saveSnapshot(companyId, date, jobIds) {
+  db.prepare(
+    'INSERT INTO daily_snapshots (companyId, snapshotDate, jobIds) VALUES (?, ?, ?)'
+  ).run(companyId, date, JSON.stringify(jobIds));
+}
+
+export function getLastSnapshot(companyId) {
+  const row = db.prepare(
+    'SELECT * FROM daily_snapshots WHERE companyId = ? ORDER BY snapshotDate DESC LIMIT 1'
+  ).get(companyId);
+  if (!row) return null;
+  return { ...row, jobIds: JSON.parse(row.jobIds) };
+}
+
+// --- Health tracking ---
+
+export function incrementZeroDays(companyId) {
+  db.prepare(
+    'UPDATE companies SET consecutiveZeroDays = consecutiveZeroDays + 1 WHERE id = ?'
+  ).run(companyId);
+}
+
+export function resetZeroDays(companyId) {
+  db.prepare('UPDATE companies SET consecutiveZeroDays = 0 WHERE id = ?').run(companyId);
+}
+
+export function flagForRediscovery(companyId) {
+  db.prepare('UPDATE companies SET flaggedForRediscovery = 1 WHERE id = ?').run(companyId);
+}
