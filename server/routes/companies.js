@@ -1,6 +1,6 @@
 import { Router } from 'express';
-import { getCompanies, getCompanyById } from '../../db/client.js';
-import { startRun } from '../runManager.js';
+import { getCompanies, getCompanyById, deleteCompany } from '../../db/client.js';
+import { startRun, getActiveRun } from '../runManager.js';
 
 const router = Router();
 
@@ -32,6 +32,18 @@ router.post('/:id/rediscover', (req, res) => {
     if (err.code === 'RUN_IN_PROGRESS') return res.status(409).json({ error: err.message });
     throw err;
   }
+});
+
+router.delete('/:id', (req, res) => {
+  const id = Number(req.params.id);
+  const company = getCompanyById(id);
+  if (!company) return res.status(404).json({ error: 'company not found' });
+  const active = getActiveRun();
+  if (active?.status === 'running') {
+    return res.status(409).json({ error: 'A run is in progress; try again once it finishes' });
+  }
+  deleteCompany(id);
+  res.status(204).end();
 });
 
 export default router;

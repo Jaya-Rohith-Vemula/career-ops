@@ -1,30 +1,138 @@
 import { useEffect, useState } from 'react';
 import { getJobs, getCompanies, updateJobStatus } from '../api';
 
-const STATUSES = ['new', 'saved', 'applied', 'dismissed'];
+const STATUSES = [
+  { value: 'yet_to_apply', label: 'Yet to Apply' },
+  { value: 'applied', label: 'Applied' },
+  { value: 'not_related', label: 'Not Related' },
+];
 const PAGE_SIZE = 25;
+
+// legacy DBs may still have 'new'/'saved'/'dismissed' rows; treat them as their
+// closest equivalent in the current taxonomy
+function normalizeStatus(status) {
+  if (status === 'dismissed') return 'not_related';
+  if (!status || status === 'new' || status === 'saved') return 'yet_to_apply';
+  return status;
+}
+
+function StatusCheckbox({ checked, onToggle, variant }) {
+  return (
+    <input
+      type="checkbox"
+      className={`status-checkbox status-checkbox-${variant}`}
+      checked={checked}
+      onChange={onToggle}
+    />
+  );
+}
+
+function JobsTable({ jobs, onStatusChange }) {
+  return (
+    <table>
+      <thead>
+        <tr>
+          <th>Title</th>
+          <th>Company</th>
+          <th>Location</th>
+          <th>First seen</th>
+          <th>Applied</th>
+          <th>Not Related</th>
+        </tr>
+      </thead>
+      <tbody>
+        {jobs.map((job) => {
+          const current = normalizeStatus(job.status);
+          return (
+            <tr key={job.id}>
+              <td><a href={job.url} target="_blank" rel="noreferrer">{job.title}</a></td>
+              <td>{job.companyName}</td>
+              <td>{job.location || '—'}</td>
+              <td>{job.dateFirstSeen?.slice(0, 10)}</td>
+              <td>
+                <StatusCheckbox
+                  variant="applied"
+                  checked={current === 'applied'}
+                  onToggle={() => onStatusChange(job, current === 'applied' ? 'yet_to_apply' : 'applied')}
+                />
+              </td>
+              <td>
+                <StatusCheckbox
+                  variant="not_related"
+                  checked={current === 'not_related'}
+                  onToggle={() => onStatusChange(job, current === 'not_related' ? 'yet_to_apply' : 'not_related')}
+                />
+              </td>
+            </tr>
+          );
+        })}
+      </tbody>
+    </table>
+  );
+}
+
+function JobsPagination({ page, setPage, total }) {
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  return (
+    <div className="pagination">
+      <button disabled={page === 0} onClick={() => setPage((p) => p - 1)}>Prev</button>
+      <span>Page {page + 1} of {totalPages} ({total} jobs)</span>
+      <button disabled={page + 1 >= totalPages} onClick={() => setPage((p) => p + 1)}>Next</button>
+    </div>
+  );
+}
 
 export default function Jobs() {
   const [companies, setCompanies] = useState([]);
-  const [filters, setFilters] = useState({ companyId: '', status: '', tag: '', activeOnly: 'true', search: '' });
-  const [data, setData] = useState({ jobs: [], total: 0 });
-  const [page, setPage] = useState(0);
+  const [filters, setFilters] = useState({ companyId: '', status: '', tag: '', activeOnly: 'true', inactiveOnly: '', search: '' });
+
+  // split view (default, no explicit status filter): two independently
+  // paginated sections so applied jobs fall out of the way instead of
+  // cluttering the top of the list
+  const [toApply, setToApply] = useState({ jobs: [], total: 0 });
+  const [applied, setApplied] = useState({ jobs: [], total: 0 });
+  const [notRelated, setNotRelated] = useState({ jobs: [], total: 0 });
+  const [toApplyPage, setToApplyPage] = useState(0);
+  const [appliedPage, setAppliedPage] = useState(0);
+  const [notRelatedPage, setNotRelatedPage] = useState(0);
+
+  // single-list view, used when the status filter is set explicitly
+  const [single, setSingle] = useState({ jobs: [], total: 0 });
+  const [singlePage, setSinglePage] = useState(0);
+
   const [error, setError] = useState(null);
 
   useEffect(() => {
     getCompanies().then(setCompanies).catch(() => {});
   }, []);
 
+  const splitView = filters.status === '';
+
   const load = () => {
-    getJobs({ ...filters, limit: PAGE_SIZE, offset: page * PAGE_SIZE })
-      .then(setData)
-      .catch((e) => setError(e.message));
+    if (splitView) {
+      getJobs({ ...filters, status: 'yet_to_apply', limit: PAGE_SIZE, offset: toApplyPage * PAGE_SIZE })
+        .then(setToApply)
+        .catch((e) => setError(e.message));
+      getJobs({ ...filters, status: 'applied', limit: PAGE_SIZE, offset: appliedPage * PAGE_SIZE })
+        .then(setApplied)
+        .catch((e) => setError(e.message));
+      getJobs({ ...filters, status: 'not_related', limit: PAGE_SIZE, offset: notRelatedPage * PAGE_SIZE })
+        .then(setNotRelated)
+        .catch((e) => setError(e.message));
+    } else {
+      getJobs({ ...filters, limit: PAGE_SIZE, offset: singlePage * PAGE_SIZE })
+        .then(setSingle)
+        .catch((e) => setError(e.message));
+    }
   };
 
-  useEffect(load, [filters, page]);
+  useEffect(load, [filters, toApplyPage, appliedPage, notRelatedPage, singlePage]);
 
   const onFilterChange = (key, value) => {
-    setPage(0);
+    setToApplyPage(0);
+    setAppliedPage(0);
+    setNotRelatedPage(0);
+    setSinglePage(0);
     setFilters((f) => ({ ...f, [key]: value }));
   };
 
@@ -32,8 +140,6 @@ export default function Jobs() {
     await updateJobStatus(job.companyId, job.jobId, status);
     load();
   };
-
-  const totalPages = Math.max(1, Math.ceil(data.total / PAGE_SIZE));
 
   return (
     <div>
@@ -46,7 +152,7 @@ export default function Jobs() {
         </select>
         <select value={filters.status} onChange={(e) => onFilterChange('status', e.target.value)}>
           <option value="">All statuses</option>
-          {STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}
+          {STATUSES.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
         </select>
         <input
           placeholder="Tag (e.g. React)"
@@ -62,46 +168,54 @@ export default function Jobs() {
           <input
             type="checkbox"
             checked={filters.activeOnly === 'true'}
-            onChange={(e) => onFilterChange('activeOnly', e.target.checked ? 'true' : '')}
+            onChange={(e) => {
+              onFilterChange('activeOnly', e.target.checked ? 'true' : '');
+              if (e.target.checked) onFilterChange('inactiveOnly', '');
+            }}
           />
           Active only
+        </label>
+        <label>
+          <input
+            type="checkbox"
+            checked={filters.inactiveOnly === 'true'}
+            onChange={(e) => {
+              onFilterChange('inactiveOnly', e.target.checked ? 'true' : '');
+              if (e.target.checked) onFilterChange('activeOnly', '');
+            }}
+          />
+          Inactive only
         </label>
       </div>
 
       {error && <p className="error">{error}</p>}
 
-      <table>
-        <thead>
-          <tr>
-            <th>Title</th>
-            <th>Company</th>
-            <th>Location</th>
-            <th>First seen</th>
-            <th>Status</th>
-          </tr>
-        </thead>
-        <tbody>
-          {data.jobs.map((job) => (
-            <tr key={job.id}>
-              <td><a href={job.url} target="_blank" rel="noreferrer">{job.title}</a></td>
-              <td>{job.companyName}</td>
-              <td>{job.location || '—'}</td>
-              <td>{job.dateFirstSeen?.slice(0, 10)}</td>
-              <td>
-                <select value={job.status || 'new'} onChange={(e) => onStatusChange(job, e.target.value)}>
-                  {STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}
-                </select>
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+      {splitView ? (
+        <>
+          <section>
+            <h2>To Apply ({toApply.total})</h2>
+            <JobsTable jobs={toApply.jobs} onStatusChange={onStatusChange} />
+            <JobsPagination page={toApplyPage} setPage={setToApplyPage} total={toApply.total} />
+          </section>
 
-      <div className="pagination">
-        <button disabled={page === 0} onClick={() => setPage((p) => p - 1)}>Prev</button>
-        <span>Page {page + 1} of {totalPages} ({data.total} jobs)</span>
-        <button disabled={page + 1 >= totalPages} onClick={() => setPage((p) => p + 1)}>Next</button>
-      </div>
+          <details className="collapsible-section">
+            <summary>Applied ({applied.total})</summary>
+            <JobsTable jobs={applied.jobs} onStatusChange={onStatusChange} />
+            <JobsPagination page={appliedPage} setPage={setAppliedPage} total={applied.total} />
+          </details>
+
+          <details className="collapsible-section">
+            <summary>Not Related ({notRelated.total})</summary>
+            <JobsTable jobs={notRelated.jobs} onStatusChange={onStatusChange} />
+            <JobsPagination page={notRelatedPage} setPage={setNotRelatedPage} total={notRelated.total} />
+          </details>
+        </>
+      ) : (
+        <section>
+          <JobsTable jobs={single.jobs} onStatusChange={onStatusChange} />
+          <JobsPagination page={singlePage} setPage={setSinglePage} total={single.total} />
+        </section>
+      )}
     </div>
   );
 }

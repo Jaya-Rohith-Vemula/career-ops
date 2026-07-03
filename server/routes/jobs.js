@@ -9,6 +9,7 @@ function parseFilters(query) {
     status: query.status || undefined,
     tag: query.tag || undefined,
     activeOnly: query.activeOnly === 'true',
+    inactiveOnly: query.inactiveOnly === 'true',
     search: query.search || undefined,
     limit: query.limit ? Number(query.limit) : 50,
     offset: query.offset ? Number(query.offset) : 0,
@@ -25,7 +26,7 @@ router.get('/', (req, res) => {
 router.patch('/:companyId/:jobId/status', (req, res) => {
   const { companyId, jobId } = req.params;
   const { status } = req.body;
-  const allowed = ['new', 'saved', 'applied', 'dismissed'];
+  const allowed = ['yet_to_apply', 'applied', 'not_related'];
   if (!allowed.includes(status)) {
     return res.status(400).json({ error: `status must be one of ${allowed.join(', ')}` });
   }

@@ -7,6 +7,7 @@ async function request(path, options) {
     const body = await res.json().catch(() => ({}));
     throw new Error(body.error || `Request failed: ${res.status}`);
   }
+  if (res.status === 204) return null;
   return res.json();
 }
 
@@ -38,6 +39,10 @@ export function addCompany(name) {
 
 export function rediscoverCompany(id, url) {
   return request(`/companies/${id}/rediscover`, { method: 'POST', body: JSON.stringify({ url }) });
+}
+
+export function deleteCompany(id) {
+  return request(`/companies/${id}`, { method: 'DELETE' });
 }
 
 export function triggerDailyRun() {

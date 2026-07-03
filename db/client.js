@@ -48,6 +48,12 @@ export function updateCompany(id, data) {
   db.prepare(`UPDATE companies SET ${setClause} WHERE id = @id`).run({ ...data, id });
 }
 
+export const deleteCompany = db.transaction((id) => {
+  db.prepare('DELETE FROM jobs WHERE companyId = ?').run(id);
+  db.prepare('DELETE FROM daily_snapshots WHERE companyId = ?').run(id);
+  db.prepare('DELETE FROM companies WHERE id = ?').run(id);
+});
+
 // --- Jobs ---
 
 export function insertJob(data) {
@@ -87,9 +93,17 @@ function buildJobFilterClause(filters) {
     clauses.push('jobs.companyId = @companyId');
     params.companyId = filters.companyId;
   }
-  if (filters.status) {
+  if (filters.status === 'yet_to_apply') {
+    clauses.push("(jobs.status IS NULL OR jobs.status IN ('new', 'saved', 'yet_to_apply'))");
+  } else if (filters.status === 'not_related') {
+    clauses.push("jobs.status IN ('dismissed', 'not_related')");
+  } else if (filters.status) {
     clauses.push('jobs.status = @status');
     params.status = filters.status;
+  } else {
+    // default view: jobs marked not related stay in the DB (so they aren't
+    // re-detected as "new" on the next run) but are hidden unless filtered for
+    clauses.push("(jobs.status IS NULL OR jobs.status NOT IN ('dismissed', 'not_related'))");
   }
   if (filters.tag) {
     clauses.push('jobs.techStackTags LIKE @tag');
@@ -97,6 +111,9 @@ function buildJobFilterClause(filters) {
   }
   if (filters.activeOnly) {
     clauses.push('jobs.isActive = 1');
+  }
+  if (filters.inactiveOnly) {
+    clauses.push('jobs.isActive = 0');
   }
   if (filters.search) {
     clauses.push('jobs.title LIKE @search');
