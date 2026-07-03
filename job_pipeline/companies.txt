@@ -1,0 +1,11 @@
+# companies.txt
+Verkada
+Stripe
+Notion
+Retool
+Linear
+Vercel
+Anthropic
+PlanetScale
+Figma
+Airbnb

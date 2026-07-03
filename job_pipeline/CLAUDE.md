@@ -22,7 +22,7 @@ Two CLI entry points orchestrate the pipeline:
 - **`dailyRunner.js`** — daily execution: reads stored config, replays the appropriate fetch, diffs against the last snapshot, inserts new jobs
 
 **Discovery flow** (`discovery/`):
-1. `findCareersPage.js` — three-strategy URL discovery (URL pattern probing → homepage link scraping → Playwright web search)
+1. `findCareersPage.js` — two-strategy URL discovery (URL pattern probing → homepage link scraping). Both strategies verify the resolved URL still resolves to the target company's domain before accepting a match, to avoid false positives from squatted/unrelated domains. Companies where both strategies fail return `null` and should be flagged for manual entry — there is no web-search fallback (search engines block headless scraping).
 2. `detectCategory.js` — classifies the careers page into one of three categories
 3. `runDiscovery.js` — chains steps 1→2→DB insert→initial fetch
 
@@ -31,7 +31,7 @@ Two CLI entry points orchestrate the pipeline:
 - `xhr` — Workday/iCIMS/etc: replay a saved XHR endpoint via `fetch` (`fetchers/xhrFetcher.js`)
 - `dom` — proprietary pages: `fetch`+cheerio for static, Playwright for JS-rendered (`fetchers/domFetcher.js`)
 
-**Playwright** is used only for: Strategy 3 URL discovery, XHR interception during category detection, and `requiresJs=true` DOM fetches. Never for ATS or XHR daily runs.
+**Playwright** is used only for: XHR interception during category detection and `requiresJs=true` DOM fetches. Never for ATS or XHR daily runs, and never for URL discovery.
 
 **`db/client.js`** — all SQLite access goes through this module. `better-sqlite3` is synchronous; never wrap its calls in async/await. The DB and tables are auto-created on first import.
 

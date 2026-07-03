@@ -32,6 +32,10 @@ export function getCompanyById(id) {
   return db.prepare('SELECT * FROM companies WHERE id = ?').get(id);
 }
 
+export function getCompanyByName(name) {
+  return db.prepare('SELECT * FROM companies WHERE name = ?').get(name);
+}
+
 export function updateCompany(id, data) {
   const cols = Object.keys(data);
   const setClause = cols.map(c => `${c} = @${c}`).join(', ');
@@ -50,6 +54,35 @@ export function insertJob(data) {
 
 export function getJobsByCompany(companyId) {
   return db.prepare('SELECT * FROM jobs WHERE companyId = ?').all(companyId);
+}
+
+export function getJobDescriptions(companyId) {
+  const rows = db.prepare(
+    "SELECT jobId, description FROM jobs WHERE companyId = ? AND description IS NOT NULL AND description != ''"
+  ).all(companyId);
+  return new Map(rows.map((r) => [r.jobId, r.description]));
+}
+
+export function upsertJob(data) {
+  const cols = Object.keys(data);
+  const placeholders = cols.map(c => `@${c}`).join(', ');
+  const updateCols = cols.filter((c) => c !== 'companyId' && c !== 'jobId' && c !== 'dateFirstSeen');
+  const updateClause = updateCols.map((c) => `${c} = excluded.${c}`).join(', ');
+  db.prepare(
+    `INSERT INTO jobs (${cols.join(', ')}) VALUES (${placeholders})
+     ON CONFLICT(companyId, jobId) DO UPDATE SET ${updateClause}`
+  ).run(data);
+}
+
+export function deactivateJobs(companyId, activeJobIds) {
+  if (activeJobIds.length === 0) {
+    db.prepare('UPDATE jobs SET isActive = 0 WHERE companyId = ?').run(companyId);
+    return;
+  }
+  const placeholders = activeJobIds.map(() => '?').join(', ');
+  db.prepare(
+    `UPDATE jobs SET isActive = 0 WHERE companyId = ? AND jobId NOT IN (${placeholders})`
+  ).run(companyId, ...activeJobIds);
 }
 
 // --- Snapshots ---
