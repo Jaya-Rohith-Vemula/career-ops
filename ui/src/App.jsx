@@ -1,7 +1,7 @@
 import { BrowserRouter, Routes, Route, NavLink } from 'react-router-dom';
 import Dashboard from './pages/Dashboard';
 import Jobs from './pages/Jobs';
-import YcImport from './pages/YcImport';
+import ImportCompanies from './pages/ImportCompanies';
 import './App.css';
 
 export default function App() {
@@ -16,14 +16,14 @@ export default function App() {
           <div className="nav-links">
             <NavLink to="/" end>Dashboard</NavLink>
             <NavLink to="/jobs">Jobs</NavLink>
-            <NavLink to="/yc-import">YC Import</NavLink>
+            <NavLink to="/import">Import Companies</NavLink>
           </div>
         </nav>
         <main>
           <Routes>
             <Route path="/" element={<Dashboard />} />
             <Route path="/jobs" element={<Jobs />} />
-            <Route path="/yc-import" element={<YcImport />} />
+            <Route path="/import" element={<ImportCompanies />} />
           </Routes>
         </main>
       </div>

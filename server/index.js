@@ -6,6 +6,7 @@ import companiesRouter from './routes/companies.js';
 import runsRouter from './routes/runs.js';
 import statsRouter from './routes/stats.js';
 import ycRouter from './routes/yc.js';
+import builtinRouter from './routes/builtin.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PORT = process.env.PORT || 3000;
@@ -18,6 +19,7 @@ app.use('/api/companies', companiesRouter);
 app.use('/api/runs', runsRouter);
 app.use('/api/stats', statsRouter);
 app.use('/api/yc', ycRouter);
+app.use('/api/sourcing/builtin', builtinRouter);
 
 const uiDist = join(__dirname, '..', 'ui', 'dist');
 app.use(express.static(uiDist));

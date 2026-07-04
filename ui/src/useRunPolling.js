@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { getRun } from './api';
 
-export function useRunPolling(runId) {
+export function useRunPolling(runId, fetchRun = getRun) {
   const [run, setRun] = useState(null);
 
   useEffect(() => {
@@ -13,7 +13,7 @@ export function useRunPolling(runId) {
     let failures = 0;
     const poll = async () => {
       try {
-        const data = await getRun(runId);
+        const data = await fetchRun(runId);
         if (cancelled) return;
         failures = 0;
         setRun(data);

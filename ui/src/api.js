@@ -74,3 +74,22 @@ export function importYcCompanies(companies) {
     body: JSON.stringify({ companies }),
   });
 }
+
+export function triggerBuiltinScrape() {
+  return request('/sourcing/builtin', { method: 'POST' });
+}
+
+export function getBuiltinActiveRun() {
+  return request('/sourcing/builtin/active');
+}
+
+export function getBuiltinRun(runId) {
+  return request(`/sourcing/builtin/${runId}`);
+}
+
+export function importBuiltinCompanies(companies) {
+  return request('/sourcing/builtin/import', {
+    method: 'POST',
+    body: JSON.stringify({ companies }),
+  });
+}

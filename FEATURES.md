@@ -37,13 +37,24 @@
 ## CSV export (`exportJobs.js`)
 - Dumps all companies' jobs to `all_jobs_export.csv` (company, jobId, title, location, tech tags, url, active flag, first/last seen dates)
 
-## YC directory import (`discovery/scrapeYC.js`, `server/routes/yc.js`)
+## Company sourcing imports (`server/routes/yc.js`, `server/routes/builtin.js`, `sources/builtin.js`)
+Two independent scrapers feed candidate companies into the same review-and-import UI flow (see **Import Companies** below); neither trigger discovery directly — imported companies land as `pending` and go through the normal add/rediscover flow afterward.
+
+**YC directory import** (`discovery/scrapeYC.js`, `server/routes/yc.js`)
 - Fetches the YC company directory (ycombinator.com/companies) by calling the same Algolia search endpoint the site's own frontend uses — no DOM scraping or headless browser
 - Single request (`hitsPerPage: 1000`) returns the full filtered result set (default filter: US/Remote regions, team size 50+)
 - `GET /api/yc/companies` — run the scrape, return the list (name, website, batch, team size, industry, YC profile URL)
-- `POST /api/yc/companies/import` — insert selected companies into the `companies` table as `pending` (deduped by name against existing companies); does not trigger discovery — that happens later via the normal add/rediscover flow
+- `POST /api/yc/companies/import` — insert selected companies into the `companies` table as `pending` (deduped by name against existing companies)
 - Also runnable standalone: `node discovery/scrapeYC.js > yc_companies.json`
-- **UI page (YC Import)** — "Scrape YC companies" fetches and lists results with per-row/select-all checkboxes (all selected by default); "Add N selected to companies list" confirms then imports, reporting how many were added vs. already tracked
+
+**Built In directory import** (`scrapeBuiltin.js`, `sources/builtin.js`, `server/routes/builtin.js`)
+- Scrapes company names off Built In's engineering job listings (`builtin.com`) — the list renders fully server-side, so it's plain `fetch` + cheerio, no Playwright; paginates via a `page` query param until a page returns no job cards (capped at `MAX_PAGES`)
+- Reads company names from `[data-id="job-card"] [data-id="company-title"]`, deduped via a `Set`
+- Runs as a background subprocess (like discovery/daily runs) through the shared `runManager.js`, so it's start/poll/stop just like other runs — one at a time app-wide
+- `POST /api/sourcing/builtin` — start a scrape run (background subprocess, 409 if one's already active)
+- `GET /api/sourcing/builtin/active`, `GET /api/sourcing/builtin/:id` — poll run status/output
+- `POST /api/sourcing/builtin/import` — insert selected companies as `pending` (deduped by name)
+- Also runnable standalone: `node scrapeBuiltin.js`
 
 ## Dashboard web app (`server/`, `ui/`)
 Express API (`server/index.js`, serves built `ui/dist` in production) + React/Vite SPA.
@@ -67,3 +78,4 @@ Express API (`server/index.js`, serves built `ui/dist` in production) + React/Vi
 **UI pages:**
 - **Dashboard** — stat tiles (new jobs today, companies tracked, needs attention, active jobs); add-company form (name + optional URL); per-company table (category, discovery status, last run, zero-days, flagged state, careers URL) with inline rediscover and delete; multi-select companies + "run daily now" for a subset; live run output panel with stop/dismiss; auto-refreshes when a run finishes
 - **Jobs** — filter by company, status, tag, search text, active-only/inactive-only; default split view (To Apply / Applied / Not Related as collapsible sections, each independently paginated) or single filtered/paginated list when a status filter is chosen; per-row checkboxes to mark a job Applied or Not Related; legacy status values (`new`/`saved`/`dismissed`) normalized to the current taxonomy
+- **Import Companies** (`/import`, was `/yc-import`) — tabbed page hosting both sourcing scrapers side by side: "YC Import" and "Built In" tabs, each with its own scrape/poll/select/import flow. Both tabs share a `RunOutputPanel` component (run status line, dismiss button, live output `<pre>`) factored out for reuse across background-run UIs
