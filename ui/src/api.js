@@ -33,8 +33,8 @@ export function getCompanies() {
   return request('/companies');
 }
 
-export function addCompany(name) {
-  return request('/companies', { method: 'POST', body: JSON.stringify({ name }) });
+export function addCompany(name, url) {
+  return request('/companies', { method: 'POST', body: JSON.stringify({ name, url }) });
 }
 
 export function rediscoverCompany(id, url) {
@@ -45,10 +45,21 @@ export function deleteCompany(id) {
   return request(`/companies/${id}`, { method: 'DELETE' });
 }
 
-export function triggerDailyRun() {
-  return request('/runs/daily', { method: 'POST' });
+export function triggerDailyRun(companyIds) {
+  return request('/runs/daily', {
+    method: 'POST',
+    body: JSON.stringify(companyIds && companyIds.length ? { companyIds } : {}),
+  });
 }
 
 export function getRun(runId) {
   return request(`/runs/${runId}`);
+}
+
+export function stopRun(runId) {
+  return request(`/runs/${runId}/stop`, { method: 'POST' });
+}
+
+export function getActiveRun() {
+  return request('/runs/active');
 }

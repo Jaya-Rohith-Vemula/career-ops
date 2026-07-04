@@ -68,13 +68,26 @@ async function mapWithConcurrency(items, limit, fn) {
   await Promise.all(Array.from({ length: Math.min(limit, items.length) }, worker));
 }
 
+const DESCRIPTION_PROGRESS_INTERVAL = 25;
+
 // Descriptions rarely change once a posting is up, so postings already
 // carrying a saved description (from an earlier run) reuse it instead of
 // re-fetching their detail page every single day.
-async function enrichJobDescriptions(jobs, existingDescriptions) {
+async function enrichJobDescriptions(jobs, existingDescriptions, companyName) {
+  let completed = 0;
+  let fetched = 0;
   await mapWithConcurrency(jobs, DESCRIPTION_FETCH_CONCURRENCY, async (job) => {
     const cached = existingDescriptions.get(job.jobId);
-    job.description = cached || (await fetchJobDescription(job.url));
+    if (cached) {
+      job.description = cached;
+    } else {
+      job.description = await fetchJobDescription(job.url);
+      fetched += 1;
+    }
+    completed += 1;
+    if (completed % DESCRIPTION_PROGRESS_INTERVAL === 0 || completed === jobs.length) {
+      console.log(`  ${companyName}: fetched ${fetched} new description${fetched === 1 ? '' : 's'} (${completed}/${jobs.length} jobs checked)`);
+    }
   });
 }
 
@@ -152,6 +165,7 @@ async function fetchStaticDomJobs(company) {
     const $ = cheerio.load(html);
     const pageJobs = extractJobs($, company, currentUrl);
     jobs.push(...pageJobs);
+    console.log(`  ${company.name}: page ${pageNum + 1} — ${jobs.length} jobs so far`);
 
     // The real "we've reached the last page" signal: a page that contributes
     // nothing we haven't already seen (whether that's a genuinely empty last
@@ -196,6 +210,7 @@ async function fetchJsDomJobs(company) {
       const $ = cheerio.load(html);
       const pageJobs = extractJobs($, company, page.url());
       jobs.push(...pageJobs);
+      console.log(`  ${company.name}: page ${pageNum + 1} — ${jobs.length} jobs so far`);
 
       // Same "stop once a page adds nothing new" signal as the static path —
       // this is what actually detects the last page (Airbnb never tells us
@@ -206,7 +221,10 @@ async function fetchJsDomJobs(company) {
       const hasNewJob = pageJobs.some((job) => !seenIds.has(job.jobId));
       for (const job of pageJobs) seenIds.add(job.jobId);
       staleStreak = hasNewJob ? 0 : staleStreak + 1;
-      if (staleStreak >= STALE_PAGE_LIMIT) { console.error('BREAK stale limit'); break; }
+      if (staleStreak >= STALE_PAGE_LIMIT) {
+        console.log(`  ${company.name}: no new jobs for ${STALE_PAGE_LIMIT} pages in a row, stopping pagination`);
+        break;
+      }
 
       const nextUrl = findNextPageUrl($, page.url());
       if (nextUrl && !visited.has(nextUrl)) {
@@ -243,7 +261,12 @@ async function fetchJsDomJobs(company) {
           { timeout: 10000 }
         )
         .catch(() => {});
-      await page.waitForLoadState('networkidle').catch(() => {});
+      // Bounded short — the content-change wait above is the real signal;
+      // sites with constant background analytics/tracking traffic (Apple's
+      // careers page included) never reach true networkidle, so waiting on
+      // Playwright's 30s default here just adds dead time per page with no
+      // benefit.
+      await page.waitForLoadState('networkidle', { timeout: 5000 }).catch(() => {});
 
       // Some AJAX pagers patch the listing container progressively (first
       // item flips, then the rest stream in over the following moment) —
@@ -315,7 +338,7 @@ async function fetchAndSync(companyId) {
   }
 
   const existingDescriptions = getJobDescriptions(companyId);
-  await enrichJobDescriptions(jobs, existingDescriptions);
+  await enrichJobDescriptions(jobs, existingDescriptions, company.name);
 
   const result = syncCompanyJobs(companyId, jobs);
 

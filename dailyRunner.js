@@ -60,11 +60,19 @@ async function handleZeroDayTracking(company, activeCount) {
   }
 }
 
+function parseIdsArg() {
+  const arg = process.argv.find((a) => a.startsWith('--ids='));
+  if (!arg) return null;
+  return new Set(arg.slice('--ids='.length).split(',').map(Number));
+}
+
 async function main() {
+  const idFilter = parseIdsArg();
   const companies = getCompanies().filter(
     (c) =>
       (c.category === 'ats' || c.category === 'xhr' || c.category === 'dom') &&
-      c.discoveryStatus === 'active'
+      c.discoveryStatus === 'active' &&
+      (idFilter === null || idFilter.has(c.id))
   );
 
   const today = todayLocalDate();

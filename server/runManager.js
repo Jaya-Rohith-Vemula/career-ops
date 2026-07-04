@@ -29,7 +29,7 @@ export function startRun(script, args = []) {
 
   const runId = randomUUID();
   const child = spawn('node', [script, ...args], { cwd: rootDir });
-  const run = { id: runId, script, args, status: 'running', output: [], startedAt: new Date().toISOString(), finishedAt: null };
+  const run = { id: runId, script, args, status: 'running', output: [], startedAt: new Date().toISOString(), finishedAt: null, child };
   runs.set(runId, run);
   activeRunId = runId;
 
@@ -37,8 +37,9 @@ export function startRun(script, args = []) {
   child.stderr.on('data', (chunk) => run.output.push(chunk.toString()));
 
   child.on('close', (code) => {
-    run.status = code === 0 ? 'done' : 'failed';
+    run.status = run.status === 'stopping' ? 'stopped' : code === 0 ? 'done' : 'failed';
     run.finishedAt = new Date().toISOString();
+    run.child = null;
     if (activeRunId === runId) activeRunId = null;
   });
 
@@ -46,8 +47,29 @@ export function startRun(script, args = []) {
     run.status = 'failed';
     run.output.push(String(err));
     run.finishedAt = new Date().toISOString();
+    run.child = null;
     if (activeRunId === runId) activeRunId = null;
   });
 
   return runId;
+}
+
+export function stopRun(runId) {
+  const run = runs.get(runId);
+  if (!run) {
+    const err = new Error('run not found');
+    err.code = 'RUN_NOT_FOUND';
+    throw err;
+  }
+  if (run.status !== 'running' || !run.child) {
+    const err = new Error('run is not currently running');
+    err.code = 'RUN_NOT_RUNNING';
+    throw err;
+  }
+  run.status = 'stopping';
+  run.child.kill('SIGTERM');
+  setTimeout(() => {
+    if (run.child) run.child.kill('SIGKILL');
+  }, 5000);
+  return run;
 }

@@ -83,7 +83,7 @@ async function main() {
   }
 
   const today = todayLocalDate();
-  console.log(`[${today}] Processing ${names.length} compan${names.length === 1 ? 'y' : 'ies'}...`);
+  console.log(`[${today}] Processing ${names.join(', ')}...`);
 
   const results = await processCompanies(names, { url: args.url, rediscover: args.rediscover });
 

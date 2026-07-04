@@ -369,6 +369,10 @@ button:disabled {
   font-size: 13px;
 }
 
+.run-output .pl-4 {
+  margin-left: 12px;
+}
+
 .run-output pre {
   max-height: 240px;
   overflow: auto;

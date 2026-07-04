@@ -1,14 +1,16 @@
 import { useEffect, useState } from 'react';
-import { getStats, getCompanies, addCompany, rediscoverCompany, triggerDailyRun, deleteCompany } from '../api';
+import { getStats, getCompanies, addCompany, rediscoverCompany, triggerDailyRun, deleteCompany, stopRun, getActiveRun } from '../api';
 import { useRunPolling } from '../useRunPolling';
 
 export default function Dashboard() {
   const [stats, setStats] = useState(null);
   const [companies, setCompanies] = useState([]);
   const [newName, setNewName] = useState('');
+  const [newUrl, setNewUrl] = useState('');
   const [error, setError] = useState(null);
   const [runId, setRunId] = useState(null);
   const [urlDrafts, setUrlDrafts] = useState({});
+  const [selectedIds, setSelectedIds] = useState(new Set());
   const run = useRunPolling(runId);
 
   const load = () => {
@@ -18,19 +20,25 @@ export default function Dashboard() {
 
   useEffect(() => {
     load();
+    getActiveRun()
+      .then((active) => {
+        if (active?.status === 'running' || active?.status === 'stopping') setRunId(active.id);
+      })
+      .catch(() => {});
   }, []);
 
   useEffect(() => {
-    if (run && run.status !== 'running') load();
+    if (run && run.status !== 'running' && run.status !== 'stopping') load();
   }, [run?.status]);
 
   const handleAdd = async (e) => {
     e.preventDefault();
     if (!newName.trim()) return;
     try {
-      const { runId } = await addCompany(newName.trim());
+      const { runId } = await addCompany(newName.trim(), newUrl.trim() || undefined);
       setRunId(runId);
       setNewName('');
+      setNewUrl('');
     } catch (err) {
       setError(err.message);
     }
@@ -62,12 +70,38 @@ export default function Dashboard() {
 
   const handleDailyRun = async () => {
     try {
-      const { runId } = await triggerDailyRun();
+      const { runId } = await triggerDailyRun(Array.from(selectedIds));
       setRunId(runId);
     } catch (err) {
       setError(err.message);
     }
   };
+
+  const toggleSelected = (id) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const toggleSelectAll = () => {
+    setSelectedIds((prev) =>
+      prev.size === companies.length ? new Set() : new Set(companies.map((c) => c.id))
+    );
+  };
+
+  const handleStopRun = async () => {
+    if (!runId) return;
+    try {
+      await stopRun(runId);
+    } catch (err) {
+      setError(err.message);
+    }
+  };
+
+  const isBusy = run?.status === 'running' || run?.status === 'stopping';
 
   if (!stats) return <p>Loading…</p>;
 
@@ -98,9 +132,14 @@ export default function Dashboard() {
           value={newName}
           onChange={(e) => setNewName(e.target.value)}
         />
-        <button type="submit" disabled={run?.status === 'running'}>Add company</button>
-        <button type="button" onClick={handleDailyRun} disabled={run?.status === 'running'}>
-          Run daily now
+        <input
+          placeholder="Careers URL (optional)…"
+          value={newUrl}
+          onChange={(e) => setNewUrl(e.target.value)}
+        />
+        <button type="submit" disabled={isBusy}>Add company</button>
+        <button type="button" onClick={handleDailyRun} disabled={isBusy}>
+          Run daily now{selectedIds.size > 0 ? ` (${selectedIds.size})` : ''}
         </button>
       </form>
 
@@ -109,6 +148,16 @@ export default function Dashboard() {
       {run && (
         <div className="run-output">
           <strong>Run status: {run.status}</strong>
+          {run.status === 'running' && (
+            <button type="button" className="button-danger pl-4" onClick={handleStopRun}>
+              Stop run
+            </button>
+          )}
+          {run.status !== 'running' && run.status !== 'stopping' && (
+            <button type="button" className="pl-4" onClick={() => setRunId(null)}>
+              Dismiss
+            </button>
+          )}
           <pre>{run.output}</pre>
         </div>
       )}
@@ -117,6 +166,13 @@ export default function Dashboard() {
       <table>
         <thead>
           <tr>
+            <th>
+              <input
+                type="checkbox"
+                checked={companies.length > 0 && selectedIds.size === companies.length}
+                onChange={toggleSelectAll}
+              />
+            </th>
             <th>Name</th>
             <th>Category</th>
             <th>Discovery status</th>
@@ -130,6 +186,13 @@ export default function Dashboard() {
         <tbody>
           {companies.map((c) => (
             <tr key={c.id} className={c.flaggedForRediscovery || c.discoveryStatus === 'failed' ? 'row-flagged' : undefined}>
+              <td>
+                <input
+                  type="checkbox"
+                  checked={selectedIds.has(c.id)}
+                  onChange={() => toggleSelected(c.id)}
+                />
+              </td>
               <td>{c.name}</td>
               <td>{c.category || '—'}</td>
               <td>{c.discoveryStatus}</td>
@@ -146,13 +209,13 @@ export default function Dashboard() {
               </td>
               <td>
                 <div className="row-actions">
-                  <button onClick={() => handleRediscover(c)} disabled={run?.status === 'running'}>
+                  <button onClick={() => handleRediscover(c)} disabled={isBusy}>
                     Rediscover
                   </button>
                   <button
                     className="button-danger"
                     onClick={() => handleDelete(c)}
-                    disabled={run?.status === 'running'}
+                    disabled={isBusy}
                   >
                     Delete
                   </button>

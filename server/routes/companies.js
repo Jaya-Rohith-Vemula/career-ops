@@ -9,10 +9,11 @@ router.get('/', (req, res) => {
 });
 
 router.post('/', (req, res) => {
-  const { name } = req.body;
+  const { name, url } = req.body;
   if (!name) return res.status(400).json({ error: 'name is required' });
   try {
-    const runId = startRun('discoveryAgent.js', ['--name', name]);
+    const args = url ? ['--name', name, '--url', url] : ['--name', name];
+    const runId = startRun('discoveryAgent.js', args);
     res.status(202).json({ runId });
   } catch (err) {
     if (err.code === 'RUN_IN_PROGRESS') return res.status(409).json({ error: err.message });
