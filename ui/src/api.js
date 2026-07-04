@@ -63,3 +63,14 @@ export function stopRun(runId) {
 export function getActiveRun() {
   return request('/runs/active');
 }
+
+export function getYcCompanies() {
+  return request('/yc/companies');
+}
+
+export function importYcCompanies(companies) {
+  return request('/yc/companies/import', {
+    method: 'POST',
+    body: JSON.stringify({ companies }),
+  });
+}

@@ -1,8 +1,10 @@
 PIPELINE_WALKTHROUGH_TMP.txt
 .DS_Store
+.env
 node_modules/
 jobs_pipeline.db
 jobs_pipeline.db-shm
 jobs_pipeline.db-wal
 logs/
 all_jobs_export.csv
+glassdoor_best_places_2026.txt
