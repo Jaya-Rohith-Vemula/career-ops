@@ -114,7 +114,15 @@ export function upsertJob(data) {
 function buildJobFilterClause(filters) {
   const clauses = [];
   const params = {};
-  if (filters.companyId) {
+  if (Array.isArray(filters.companyId)) {
+    if (filters.companyId.length > 0) {
+      const placeholders = filters.companyId.map((id, i) => {
+        params[`companyId${i}`] = id;
+        return `@companyId${i}`;
+      });
+      clauses.push(`jobs.companyId IN (${placeholders.join(', ')})`);
+    }
+  } else if (filters.companyId) {
     clauses.push('jobs.companyId = @companyId');
     params.companyId = filters.companyId;
   }

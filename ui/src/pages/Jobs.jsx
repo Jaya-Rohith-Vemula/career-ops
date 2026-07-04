@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { getJobs, getCompanies, updateJobStatus, setJobLocationBucket } from '../api';
 
 const STATUSES = [
@@ -90,6 +90,64 @@ function JobsTable({ jobs, onStatusChange, onReassignLocation }) {
   );
 }
 
+function CompanyMultiSelect({ companies, selected, onChange }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const onClickOutside = (e) => {
+      if (ref.current && !ref.current.contains(e.target)) setOpen(false);
+    };
+    document.addEventListener('mousedown', onClickOutside);
+    return () => document.removeEventListener('mousedown', onClickOutside);
+  }, [open]);
+
+  const toggle = (id) => {
+    if (selected.includes(id)) {
+      onChange(selected.filter((s) => s !== id));
+    } else {
+      onChange([...selected, id]);
+    }
+  };
+
+  const label = selected.length === 0
+    ? 'All companies'
+    : selected.length === 1
+      ? companies.find((c) => String(c.id) === String(selected[0]))?.name || '1 company'
+      : `${selected.length} companies`;
+
+  return (
+    <div className="company-multiselect" ref={ref}>
+      <button type="button" onClick={() => setOpen((o) => !o)}>
+        {label}
+      </button>
+      {open && (
+        <div className="company-multiselect-panel">
+          <label className="company-multiselect-option">
+            <input
+              type="checkbox"
+              checked={selected.length === 0}
+              onChange={() => onChange([])}
+            />
+            All companies
+          </label>
+          {companies.map((c) => (
+            <label key={c.id} className="company-multiselect-option">
+              <input
+                type="checkbox"
+                checked={selected.includes(String(c.id))}
+                onChange={() => toggle(String(c.id))}
+              />
+              {c.name}
+            </label>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function JobsPagination({ page, setPage, total }) {
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
   return (
@@ -113,7 +171,7 @@ function paginate(jobs, page) {
 
 export default function Jobs() {
   const [companies, setCompanies] = useState([]);
-  const [filters, setFilters] = useState({ companyId: '', status: '', tag: '', activeOnly: 'true', inactiveOnly: '', search: '', keywordFilter: 'true', locationFilter: 'true' });
+  const [filters, setFilters] = useState({ companyId: [], status: '', tag: '', activeOnly: 'true', inactiveOnly: '', search: '', keywordFilter: 'true', locationFilter: 'true' });
 
   // split view (default, no explicit status filter): two independently
   // paginated sections so applied jobs fall out of the way instead of
@@ -220,12 +278,11 @@ export default function Jobs() {
   return (
     <div>
       <div className="filters">
-        <select value={filters.companyId} onChange={(e) => onFilterChange('companyId', e.target.value)}>
-          <option value="">All companies</option>
-          {companies.map((c) => (
-            <option key={c.id} value={c.id}>{c.name}</option>
-          ))}
-        </select>
+        <CompanyMultiSelect
+          companies={companies}
+          selected={filters.companyId}
+          onChange={(ids) => onFilterChange('companyId', ids)}
+        />
         <select value={filters.status} onChange={(e) => onFilterChange('status', e.target.value)}>
           <option value="">All statuses</option>
           {STATUSES.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}

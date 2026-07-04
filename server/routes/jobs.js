@@ -5,7 +5,9 @@ const router = Router();
 
 function parseFilters(query) {
   return {
-    companyId: query.companyId ? Number(query.companyId) : undefined,
+    companyId: query.companyId
+      ? String(query.companyId).split(',').filter(Boolean).map(Number)
+      : undefined,
     status: query.status || undefined,
     tag: query.tag || undefined,
     activeOnly: query.activeOnly === 'true',

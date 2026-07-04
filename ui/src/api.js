@@ -17,7 +17,9 @@ export function getStats() {
 
 export function getJobs(params = {}) {
   const query = new URLSearchParams(
-    Object.entries(params).filter(([, v]) => v !== undefined && v !== '')
+    Object.entries(params)
+      .filter(([, v]) => v !== undefined && v !== '' && !(Array.isArray(v) && v.length === 0))
+      .map(([k, v]) => [k, Array.isArray(v) ? v.join(',') : v])
   ).toString();
   return request(`/jobs${query ? `?${query}` : ''}`);
 }
