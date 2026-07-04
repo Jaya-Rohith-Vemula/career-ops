@@ -29,6 +29,13 @@ export function updateJobStatus(companyId, jobId, status) {
   });
 }
 
+export function setJobLocationBucket(companyId, jobId, bucket) {
+  return request(`/jobs/${companyId}/${encodeURIComponent(jobId)}/location-bucket`, {
+    method: 'PATCH',
+    body: JSON.stringify({ bucket }),
+  });
+}
+
 export function getCompanies() {
   return request('/companies');
 }
@@ -92,4 +99,36 @@ export function importBuiltinCompanies(companies) {
     method: 'POST',
     body: JSON.stringify({ companies }),
   });
+}
+
+export function getKeywords() {
+  return request('/keywords');
+}
+
+export function addKeyword(keyword) {
+  return request('/keywords', { method: 'POST', body: JSON.stringify({ keyword }) });
+}
+
+export function updateKeyword(id, enabled) {
+  return request(`/keywords/${id}`, { method: 'PATCH', body: JSON.stringify({ enabled }) });
+}
+
+export function deleteKeyword(id) {
+  return request(`/keywords/${id}`, { method: 'DELETE' });
+}
+
+export function getLocationSignals() {
+  return request('/location-signals');
+}
+
+export function addLocationSignal(signal, bucket) {
+  return request('/location-signals', { method: 'POST', body: JSON.stringify({ signal, bucket }) });
+}
+
+export function updateLocationSignal(id, enabled) {
+  return request(`/location-signals/${id}`, { method: 'PATCH', body: JSON.stringify({ enabled }) });
+}
+
+export function deleteLocationSignal(id) {
+  return request(`/location-signals/${id}`, { method: 'DELETE' });
 }

@@ -410,3 +410,73 @@ button:disabled {
   white-space: pre-wrap;
   margin: 8px 0 0;
 }
+
+.keyword-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.keyword-chip {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px 6px 12px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--bg-card);
+  font-size: 13px;
+}
+
+.keyword-chip label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text-h);
+  cursor: pointer;
+}
+
+.keyword-chip-disabled {
+  opacity: 0.5;
+}
+
+.keyword-chip-disabled label {
+  color: var(--text-faint);
+  text-decoration: line-through;
+}
+
+.keyword-chip-delete {
+  padding: 0 6px;
+  border-radius: 999px;
+  line-height: 1;
+  font-size: 15px;
+}
+
+.job-keywords {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  max-width: 220px;
+}
+
+.job-keyword-chip {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--accent-bg);
+  color: var(--accent);
+  font-size: 11px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.location-reassign {
+  display: flex;
+  gap: 4px;
+}
+
+.location-reassign button {
+  font-size: 12px;
+  padding: 4px 8px;
+  white-space: nowrap;
+}

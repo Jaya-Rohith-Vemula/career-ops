@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { getJobs, getCompanies, updateJobStatus } from '../api';
+import { getJobs, getCompanies, updateJobStatus, setJobLocationBucket } from '../api';
 
 const STATUSES = [
   { value: 'yet_to_apply', label: 'Yet to Apply' },
@@ -27,7 +27,7 @@ function StatusCheckbox({ checked, onToggle, variant }) {
   );
 }
 
-function JobsTable({ jobs, onStatusChange }) {
+function JobsTable({ jobs, onStatusChange, onReassignLocation }) {
   return (
     <table>
       <thead>
@@ -35,9 +35,11 @@ function JobsTable({ jobs, onStatusChange }) {
           <th>Title</th>
           <th>Company</th>
           <th>Location</th>
+          <th>Keywords</th>
           <th>First seen</th>
           <th>Applied</th>
           <th>Not Related</th>
+          {onReassignLocation && <th>Move to</th>}
         </tr>
       </thead>
       <tbody>
@@ -48,6 +50,15 @@ function JobsTable({ jobs, onStatusChange }) {
               <td><a href={job.url} target="_blank" rel="noreferrer">{job.title}</a></td>
               <td>{job.companyName}</td>
               <td>{job.location || '—'}</td>
+              <td>
+                {job.matchedKeywords && job.matchedKeywords.length > 0 ? (
+                  <div className="job-keywords">
+                    {job.matchedKeywords.map((kw) => (
+                      <span key={kw} className="job-keyword-chip">{kw}</span>
+                    ))}
+                  </div>
+                ) : '—'}
+              </td>
               <td>{job.dateFirstSeen?.slice(0, 10)}</td>
               <td>
                 <StatusCheckbox
@@ -63,6 +74,14 @@ function JobsTable({ jobs, onStatusChange }) {
                   onToggle={() => onStatusChange(job, current === 'not_related' ? 'yet_to_apply' : 'not_related')}
                 />
               </td>
+              {onReassignLocation && (
+                <td>
+                  <div className="location-reassign">
+                    <button onClick={() => onReassignLocation(job, 'us')}>🇺🇸 US</button>
+                    <button onClick={() => onReassignLocation(job, 'international')}>🌍 Intl</button>
+                  </div>
+                </td>
+              )}
             </tr>
           );
         })}
@@ -82,9 +101,19 @@ function JobsPagination({ page, setPage, total }) {
   );
 }
 
+const LOCATION_SECTIONS = [
+  { key: 'us', label: '🇺🇸 US-based', openByDefault: true },
+  { key: 'unknown', label: '❓ Location Unknown', openByDefault: false },
+  { key: 'international', label: '🌍 International', openByDefault: false },
+];
+
+function paginate(jobs, page) {
+  return jobs.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
+}
+
 export default function Jobs() {
   const [companies, setCompanies] = useState([]);
-  const [filters, setFilters] = useState({ companyId: '', status: '', tag: '', activeOnly: 'true', inactiveOnly: '', search: '' });
+  const [filters, setFilters] = useState({ companyId: '', status: '', tag: '', activeOnly: 'true', inactiveOnly: '', search: '', keywordFilter: 'true', locationFilter: 'true' });
 
   // split view (default, no explicit status filter): two independently
   // paginated sections so applied jobs fall out of the way instead of
@@ -92,13 +121,23 @@ export default function Jobs() {
   const [toApply, setToApply] = useState({ jobs: [], total: 0 });
   const [applied, setApplied] = useState({ jobs: [], total: 0 });
   const [notRelated, setNotRelated] = useState({ jobs: [], total: 0 });
+  const [unrelatedKeywords, setUnrelatedKeywords] = useState({ jobs: [], total: 0 });
   const [toApplyPage, setToApplyPage] = useState(0);
   const [appliedPage, setAppliedPage] = useState(0);
   const [notRelatedPage, setNotRelatedPage] = useState(0);
+  const [unrelatedKeywordsPage, setUnrelatedKeywordsPage] = useState(0);
 
   // single-list view, used when the status filter is set explicitly
   const [single, setSingle] = useState({ jobs: [], total: 0 });
   const [singlePage, setSinglePage] = useState(0);
+
+  // location-bucketed view: one large fetch, grouped and paginated client-side
+  // since locationFilter only annotates rows rather than filtering via WHERE
+  const [locationJobs, setLocationJobs] = useState({ us: [], international: [], unknown: [] });
+  const [usPage, setUsPage] = useState(0);
+  const [unknownPage, setUnknownPage] = useState(0);
+  const [internationalPage, setInternationalPage] = useState(0);
+  const locationPages = { us: [usPage, setUsPage], unknown: [unknownPage, setUnknownPage], international: [internationalPage, setInternationalPage] };
 
   const [error, setError] = useState(null);
 
@@ -107,18 +146,46 @@ export default function Jobs() {
   }, []);
 
   const splitView = filters.status === '';
+  const keywordFilterActive = filters.keywordFilter === 'true';
+  const locationFilterActive = filters.locationFilter === 'true';
 
   const load = () => {
     if (splitView) {
-      getJobs({ ...filters, status: 'yet_to_apply', limit: PAGE_SIZE, offset: toApplyPage * PAGE_SIZE })
-        .then(setToApply)
-        .catch((e) => setError(e.message));
+      if (locationFilterActive) {
+        getJobs({ ...filters, status: 'yet_to_apply', locationFilter: 'true', limit: 1000, offset: 0 })
+          .then(({ jobs }) => {
+            const buckets = { us: [], international: [], unknown: [] };
+            for (const job of jobs) {
+              const key = job.locationBucket in buckets ? job.locationBucket : 'unknown';
+              buckets[key].push(job);
+            }
+            setLocationJobs(buckets);
+          })
+          .catch((e) => setError(e.message));
+      } else {
+        getJobs({ ...filters, status: 'yet_to_apply', limit: PAGE_SIZE, offset: toApplyPage * PAGE_SIZE })
+          .then(setToApply)
+          .catch((e) => setError(e.message));
+      }
       getJobs({ ...filters, status: 'applied', limit: PAGE_SIZE, offset: appliedPage * PAGE_SIZE })
         .then(setApplied)
         .catch((e) => setError(e.message));
       getJobs({ ...filters, status: 'not_related', limit: PAGE_SIZE, offset: notRelatedPage * PAGE_SIZE })
         .then(setNotRelated)
         .catch((e) => setError(e.message));
+      if (keywordFilterActive) {
+        getJobs({
+          ...filters,
+          status: 'yet_to_apply',
+          keywordMatch: 'false',
+          limit: PAGE_SIZE,
+          offset: unrelatedKeywordsPage * PAGE_SIZE,
+        })
+          .then(setUnrelatedKeywords)
+          .catch((e) => setError(e.message));
+      } else {
+        setUnrelatedKeywords({ jobs: [], total: 0 });
+      }
     } else {
       getJobs({ ...filters, limit: PAGE_SIZE, offset: singlePage * PAGE_SIZE })
         .then(setSingle)
@@ -126,18 +193,27 @@ export default function Jobs() {
     }
   };
 
-  useEffect(load, [filters, toApplyPage, appliedPage, notRelatedPage, singlePage]);
+  useEffect(load, [filters, toApplyPage, appliedPage, notRelatedPage, unrelatedKeywordsPage, singlePage]);
 
   const onFilterChange = (key, value) => {
     setToApplyPage(0);
     setAppliedPage(0);
     setNotRelatedPage(0);
+    setUnrelatedKeywordsPage(0);
     setSinglePage(0);
+    setUsPage(0);
+    setUnknownPage(0);
+    setInternationalPage(0);
     setFilters((f) => ({ ...f, [key]: value }));
   };
 
   const onStatusChange = async (job, status) => {
     await updateJobStatus(job.companyId, job.jobId, status);
+    load();
+  };
+
+  const onReassignLocation = async (job, bucket) => {
+    await setJobLocationBucket(job.companyId, job.jobId, bucket);
     load();
   };
 
@@ -186,6 +262,22 @@ export default function Jobs() {
           />
           Inactive only
         </label>
+        <label>
+          <input
+            type="checkbox"
+            checked={filters.keywordFilter === 'true'}
+            onChange={(e) => onFilterChange('keywordFilter', e.target.checked ? 'true' : '')}
+          />
+          Filter by keywords
+        </label>
+        <label>
+          <input
+            type="checkbox"
+            checked={filters.locationFilter === 'true'}
+            onChange={(e) => onFilterChange('locationFilter', e.target.checked ? 'true' : '')}
+          />
+          Filter by location
+        </label>
       </div>
 
       {error && <p className="error">{error}</p>}
@@ -193,9 +285,33 @@ export default function Jobs() {
       {splitView ? (
         <>
           <section>
-            <h2>To Apply ({toApply.total})</h2>
-            <JobsTable jobs={toApply.jobs} onStatusChange={onStatusChange} />
-            <JobsPagination page={toApplyPage} setPage={setToApplyPage} total={toApply.total} />
+            <h2>
+              To Apply ({locationFilterActive
+                ? locationJobs.us.length + locationJobs.unknown.length + locationJobs.international.length
+                : toApply.total})
+            </h2>
+            {locationFilterActive ? (
+              LOCATION_SECTIONS.map(({ key, label, openByDefault }) => {
+                const jobs = locationJobs[key];
+                const [page, setPage] = locationPages[key];
+                return (
+                  <details key={key} className="collapsible-section" open={openByDefault || undefined}>
+                    <summary>{label} ({jobs.length})</summary>
+                    <JobsTable
+                      jobs={paginate(jobs, page)}
+                      onStatusChange={onStatusChange}
+                      onReassignLocation={key === 'unknown' ? onReassignLocation : undefined}
+                    />
+                    <JobsPagination page={page} setPage={setPage} total={jobs.length} />
+                  </details>
+                );
+              })
+            ) : (
+              <>
+                <JobsTable jobs={toApply.jobs} onStatusChange={onStatusChange} />
+                <JobsPagination page={toApplyPage} setPage={setToApplyPage} total={toApply.total} />
+              </>
+            )}
           </section>
 
           <details className="collapsible-section">
@@ -209,6 +325,14 @@ export default function Jobs() {
             <JobsTable jobs={notRelated.jobs} onStatusChange={onStatusChange} />
             <JobsPagination page={notRelatedPage} setPage={setNotRelatedPage} total={notRelated.total} />
           </details>
+
+          {keywordFilterActive && (
+            <details className="collapsible-section">
+              <summary>Unrelated (No Keyword Match) ({unrelatedKeywords.total})</summary>
+              <JobsTable jobs={unrelatedKeywords.jobs} onStatusChange={onStatusChange} />
+              <JobsPagination page={unrelatedKeywordsPage} setPage={setUnrelatedKeywordsPage} total={unrelatedKeywords.total} />
+            </details>
+          )}
         </>
       ) : (
         <section>

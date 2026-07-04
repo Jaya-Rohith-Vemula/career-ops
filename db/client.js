@@ -2,8 +2,10 @@ import Database from 'better-sqlite3';
 import { readFileSync } from 'fs';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
-import { DB_PATH } from '../config.js';
-import { todayLocalDate } from '../utils/time.js';
+import { DB_PATH, STACK_KEYWORDS } from '../config.js';
+import { todayLocalDate, nowLocalIso } from '../utils/time.js';
+import { US_SIGNALS, INTERNATIONAL_SIGNALS } from './locationSignalsSeed.js';
+import { resolveLocationBucket } from '../utils/location.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const schema = readFileSync(join(__dirname, '../schema.sql'), 'utf8');
@@ -16,6 +18,29 @@ const jobColumns = db.prepare('PRAGMA table_info(jobs)').all().map((c) => c.name
 if (!jobColumns.includes('status')) {
   db.exec("ALTER TABLE jobs ADD COLUMN status TEXT DEFAULT 'new'");
 }
+if (!jobColumns.includes('locationBucketOverride')) {
+  db.exec('ALTER TABLE jobs ADD COLUMN locationBucketOverride TEXT');
+}
+
+// Matches a keyword as a whole token — bounded by non-alphanumeric characters
+// or string edges — so "Go" doesn't match inside "negotiate" and "C++"/"C#"
+// match on their exact punctuation rather than as a plain substring.
+function escapeRegex(s) {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function tokenRegex(term) {
+  return new RegExp(`(^|[^a-zA-Z0-9])${escapeRegex(term)}([^a-zA-Z0-9]|$)`, 'i');
+}
+
+export function matchesToken(text, term) {
+  if (!text) return false;
+  return tokenRegex(term).test(text);
+}
+
+const matchesKeyword = matchesToken;
+
+db.function('keyword_match', (description, keyword) => (matchesKeyword(description, keyword) ? 1 : 0));
 
 // --- Companies ---
 
@@ -119,21 +144,46 @@ function buildJobFilterClause(filters) {
     clauses.push('jobs.title LIKE @search');
     params.search = `%${filters.search}%`;
   }
+  if (filters.keywordFilter) {
+    const enabled = getEnabledKeywords();
+    if (enabled.length > 0) {
+      const kwClauses = enabled.map((kw, i) => {
+        params[`kw${i}`] = kw.keyword;
+        return `keyword_match(jobs.description, @kw${i}) = 1`;
+      });
+      const clause = `(${kwClauses.join(' OR ')})`;
+      clauses.push(filters.keywordMatch === false ? `NOT ${clause}` : clause);
+    }
+  }
   const where = clauses.length ? `WHERE ${clauses.join(' AND ')}` : '';
   return { where, params };
+}
+
+function computeMatchedKeywords(description, keywords) {
+  if (!description) return [];
+  return keywords.filter((kw) => matchesKeyword(description, kw.keyword)).map((kw) => kw.keyword);
 }
 
 export function getJobs(filters = {}) {
   const { where, params } = buildJobFilterClause(filters);
   const limit = filters.limit ?? 50;
   const offset = filters.offset ?? 0;
-  return db.prepare(
+  const rows = db.prepare(
     `SELECT jobs.*, companies.name AS companyName
      FROM jobs JOIN companies ON companies.id = jobs.companyId
      ${where}
      ORDER BY jobs.dateFirstSeen DESC
      LIMIT @limit OFFSET @offset`
   ).all({ ...params, limit, offset });
+  const enabledKeywords = getEnabledKeywords();
+  const enabledSignals = filters.locationFilter ? getEnabledLocationSignals() : null;
+  return rows.map((row) => ({
+    ...row,
+    matchedKeywords: computeMatchedKeywords(row.description, enabledKeywords),
+    ...(enabledSignals ? {
+      locationBucket: row.locationBucketOverride || resolveLocationBucket(row.location, row.description, enabledSignals),
+    } : {}),
+  }));
 }
 
 export function countJobs(filters = {}) {
@@ -148,6 +198,12 @@ export function updateJobStatus(companyId, jobId, status) {
   db.prepare(
     'UPDATE jobs SET status = ? WHERE companyId = ? AND jobId = ?'
   ).run(status, companyId, jobId);
+}
+
+export function setJobLocationBucketOverride(companyId, jobId, bucket) {
+  db.prepare(
+    'UPDATE jobs SET locationBucketOverride = ? WHERE companyId = ? AND jobId = ?'
+  ).run(bucket, companyId, jobId);
 }
 
 export function getDashboardStats() {
@@ -204,4 +260,87 @@ export function resetZeroDays(companyId) {
 
 export function flagForRediscovery(companyId) {
   db.prepare('UPDATE companies SET flaggedForRediscovery = 1 WHERE id = ?').run(companyId);
+}
+
+// --- Stack keywords ---
+
+function insertKeywords(keywords) {
+  const createdAt = nowLocalIso();
+  const insert = db.prepare(
+    'INSERT OR IGNORE INTO stack_keywords (keyword, enabled, createdAt) VALUES (?, 1, ?)'
+  );
+  const insertMany = db.transaction((kws) => {
+    for (const keyword of kws) insert.run(keyword, createdAt);
+  });
+  insertMany(keywords);
+}
+
+export function seedStackKeywordsIfEmpty() {
+  const { count } = db.prepare('SELECT COUNT(*) AS count FROM stack_keywords').get();
+  if (count > 0) return;
+  insertKeywords(STACK_KEYWORDS);
+}
+
+export function getKeywords() {
+  return db.prepare('SELECT * FROM stack_keywords ORDER BY keyword ASC').all();
+}
+
+export function getEnabledKeywords() {
+  return db.prepare('SELECT * FROM stack_keywords WHERE enabled = 1').all();
+}
+
+export function addKeyword(keyword) {
+  const result = db.prepare(
+    'INSERT OR IGNORE INTO stack_keywords (keyword, enabled, createdAt) VALUES (?, 1, ?)'
+  ).run(keyword, nowLocalIso());
+  if (result.lastInsertRowid) return db.prepare('SELECT * FROM stack_keywords WHERE id = ?').get(result.lastInsertRowid);
+  return db.prepare('SELECT * FROM stack_keywords WHERE keyword = ?').get(keyword);
+}
+
+export function updateKeywordEnabled(id, enabled) {
+  db.prepare('UPDATE stack_keywords SET enabled = ? WHERE id = ?').run(enabled ? 1 : 0, id);
+}
+
+export function deleteKeyword(id) {
+  db.prepare('DELETE FROM stack_keywords WHERE id = ?').run(id);
+}
+
+// --- Location signals ---
+
+export function seedLocationSignalsIfEmpty() {
+  const { count } = db.prepare('SELECT COUNT(*) AS count FROM location_signals').get();
+  if (count > 0) return;
+  const createdAt = nowLocalIso();
+  const insert = db.prepare(
+    'INSERT OR IGNORE INTO location_signals (signal, bucket, enabled, createdAt) VALUES (?, ?, 1, ?)'
+  );
+  const insertMany = db.transaction((signals, bucket) => {
+    for (const signal of signals) insert.run(signal, bucket, createdAt);
+  });
+  insertMany(US_SIGNALS, 'us');
+  insertMany(INTERNATIONAL_SIGNALS, 'international');
+}
+
+export function getLocationSignals() {
+  return db.prepare('SELECT * FROM location_signals ORDER BY bucket ASC, signal ASC').all();
+}
+
+export function getEnabledLocationSignals() {
+  return db.prepare('SELECT * FROM location_signals WHERE enabled = 1').all();
+}
+
+export function addLocationSignal(signal, bucket) {
+  const result = db.prepare(
+    'INSERT OR IGNORE INTO location_signals (signal, bucket, enabled, createdAt) VALUES (?, ?, 1, ?)'
+  ).run(signal, bucket, nowLocalIso());
+  if (result.lastInsertRowid) return db.prepare('SELECT * FROM location_signals WHERE id = ?').get(result.lastInsertRowid);
+  return db.prepare('SELECT * FROM location_signals WHERE signal = ?').get(signal);
+}
+
+export function updateLocationSignalEnabled(id, enabled) {
+  db.prepare('UPDATE location_signals SET enabled = ? WHERE id = ?').run(enabled ? 1 : 0, id);
+}
+
+export function deleteLocationSignal(id) {
+  db.prepare('DELETE FROM location_signals WHERE id = ?').run(id);
 }

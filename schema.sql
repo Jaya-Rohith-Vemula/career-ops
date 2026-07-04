@@ -48,3 +48,18 @@ CREATE TABLE IF NOT EXISTS daily_snapshots (
     jobIds TEXT NOT NULL,
     FOREIGN KEY(companyId) REFERENCES companies(id)
 );
+
+CREATE TABLE IF NOT EXISTS stack_keywords (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    keyword TEXT NOT NULL UNIQUE,
+    enabled INTEGER DEFAULT 1,
+    createdAt TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS location_signals (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    signal TEXT NOT NULL UNIQUE,
+    bucket TEXT NOT NULL CHECK(bucket IN ('us', 'international')),
+    enabled INTEGER DEFAULT 1,
+    createdAt TEXT NOT NULL
+);
