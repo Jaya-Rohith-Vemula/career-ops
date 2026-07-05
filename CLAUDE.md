@@ -15,6 +15,13 @@ node dailyRunner.js                             # run daily pipeline
 npm run dev                        # server (:3000) + Vite dev server (:5173, proxies /api) together
 npm run server                     # API only
 npm --prefix ui run build          # production build; server/index.js then serves ui/dist
+
+# Resume tailoring — full-time (DB-driven, from a discovered job)
+node resume/tailorResume.js --companyId=<id> --jobId=<id>
+
+# Resume tailoring — C2C (manual JD, no DB, no client name yet): paste JD (with a "Job Title:" line) into resume/C2C/current-jd.txt, then:
+npm run resume:c2c
+# title is auto-extracted from the "Job Title:" line in the JD; override with: npm run resume:c2c -- --title="..."
 ```
 
 No test runner is configured yet. Verify behavior by running the CLI entry points directly.
@@ -50,6 +57,10 @@ background subprocesses and enforces one run at a time. `ui/` is a separate Vite
 `/api` to the Express server for local development.
 
 **Self-healing:** `consecutiveZeroDays >= 3` triggers `flaggedForRediscovery = 1` on a company; `dailyRunner.js` re-runs discovery for that company and resets the counter.
+
+**Resume tailoring** (`resume/`): two independent pipelines, both call out to an agent CLI (`AGENT_CLI` env, default `claude`) with a single prompt and pipe the markdown response through `pandoc` to `.docx`.
+- **Full-time** (`resume/tailorResume.js`): DB-driven — takes `--companyId`/`--jobId`, pulls the job description via `getJob()`, rewrites `resume/base_resume.md` (a fully-written resume) to fit that JD, styled with `resume/reference.docx`. Triggered from the UI via `server/resumeManager.js` (`startTailorRun`/`getTailorRun`).
+- **C2C** (`resume/C2C/tailorResumeC2C.js`): manual/no-DB, no client name required — you paste a job description (with a "Job Title:" line) into the fixed inbox file `resume/C2C/current-jd.txt`, then run the script with no args; the title is regex-extracted from that line (override with `--title="..."` if the JD has no such line). It fills the curly-brace placeholders in `resume/C2C/base_resume_c2c.md` (a template, not a filled-in resume — different contact info/name than the full-time resume) fresh from that JD each run, styled with `resume/C2C/reference.docx`. Output is always named `Jaya Senior Developer.md`/`.docx`, written to `resume/C2C/output/<local-timestamp>/` (folder named by local run time, e.g. `2026-07-05_14-32-05`).
 
 ## Key Constraints
 
