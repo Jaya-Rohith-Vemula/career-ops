@@ -23,6 +23,22 @@ if (!RESUME_DOCUMENT_NAME) {
   process.exit(1);
 }
 
+// Each entry describes how to invoke that CLI non-interactively with a single
+// prompt string and get the model's raw text response on stdout.
+const AGENT_CLIS = {
+  claude: { bin: 'claude', args: (prompt) => ['-p', prompt] },
+  codex: { bin: 'codex', args: (prompt) => ['exec', prompt] },
+};
+
+const AGENT_CLI = process.env.AGENT_CLI || 'claude';
+const agentCli = AGENT_CLIS[AGENT_CLI];
+if (!agentCli) {
+  console.error(
+    `Unknown AGENT_CLI "${AGENT_CLI}". Supported: ${Object.keys(AGENT_CLIS).join(', ')}`
+  );
+  process.exit(1);
+}
+
 function parseArgs(argv) {
   const args = {};
   for (const arg of argv) {
@@ -100,8 +116,8 @@ function main() {
   const mdPath = join(runDir, `${RESUME_DOCUMENT_NAME}.md`);
   const docxPath = join(runDir, `${RESUME_DOCUMENT_NAME}.docx`);
 
-  console.log('Calling claude to tailor resume...');
-  const tailored = execFileSync('claude', ['-p', prompt], {
+  console.log(`Calling ${AGENT_CLI} to tailor resume...`);
+  const tailored = execFileSync(agentCli.bin, agentCli.args(prompt), {
     encoding: 'utf8',
     maxBuffer: 10 * 1024 * 1024,
   });
