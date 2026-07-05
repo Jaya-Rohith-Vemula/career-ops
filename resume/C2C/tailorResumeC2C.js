@@ -44,6 +44,18 @@ function parseArgs(argv) {
   return args;
 }
 
+const MONTHS = 'Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec';
+const NBSP = '\u00A0';
+
+// The model tends to normalize a deliberate run of non-breaking spaces back down to a
+// single regular space, which pandoc/CommonMark then collapses entirely, so the visual
+// gap between a role's title and its dates has to be re-inserted deterministically here
+// rather than trusted to survive the prompt round-trip.
+function widenTitleDateGaps(markdown) {
+  const pattern = new RegExp(`(\\*\\*[^\\n*]+\\*\\*)[ \\t]+(\\*\\*(?:${MONTHS})[a-z]* \\d{4}[^\\n*]*\\*\\*)`, 'g');
+  return markdown.replace(pattern, (_match, title, dates) => `${title}${NBSP.repeat(4)}${dates}`);
+}
+
 function extractTitle(jobDescription) {
   const match = jobDescription.match(/^\s*job\s*title\s*:\s*(.+)$/im);
   return match ? match[1].trim() : null;
@@ -61,7 +73,8 @@ function buildPrompt(template, jobDescription, title) {
 This candidate has 7+ years of experience and is targeting senior-level roles. Every bullet across every role must read as senior-level work: owning designs and architecture decisions, driving technical direction, leading initiatives end to end, influencing cross-team or cross-functional outcomes, mentoring others, and making tradeoff calls, not just implementing assigned tickets. Junior-sounding phrasing ("helped with", "assisted", "contributed to", "participated in", "learned") is not acceptable anywhere — use ownership language instead ("led", "drove", "architected", "owned", "spearheaded", "established", "drove alignment on").
 
 Formatting rules:
-- Keep the exact structure of the template: bold name/title/contact lines, "**SECTION NAME**" bold section headers, bold role title + dates line, italicized company name line, bullet lists under each role.
+- Keep the exact structure of the template: bold name/title/contact lines, "## SECTION NAME" markdown headings for section titles (do not convert these to bold text or a different heading level), bold role title + dates line, italicized company name line, bullet lists under each role.
+- The role title and dates on each experience line are separated by several non-breaking space characters (not a single regular space) for visual spacing. Preserve that exact run of non-breaking spaces between "**{Designation}**" and the bold dates on every role line, do not collapse it to a single space.
 - Replace "Senior {Designation}" in the header line with the seniority-appropriate title that best matches the target job description (e.g. "Senior Full Stack Developer", "Senior JavaScript Engineer", "Senior Backend Engineer").
 - Replace each per-role "{Designation}" with a title that reflects a plausible seniority progression across the four roles, ending at the header title's level in the most recent (Texas Comptroller) role. The three older roles should carry the same technical discipline as the target JD but a notch below senior (e.g. "Full Stack Developer" or "Software Engineer") for the earliest two, stepping up toward "Senior" by the American Express role if warranted, so the story reads as steady growth into seniority, not four identical titles.
 - Replace "{12 points that say seniority, breadth of tool usage, and share points even about outside-tech traits like behavioral/leadership}" with exactly 12 PROFESSIONAL SUMMARY bullets. These must cover, across the 12: years of experience and seniority framing, the target JD's core technologies, breadth across the full stack the JD implies, and at least 2-3 bullets on non-technical strengths (leadership, mentorship, ownership, stakeholder communication, driving ambiguous problems to resolution, cross-functional collaboration) — not purely a list of technologies.
@@ -129,7 +142,8 @@ function main() {
     encoding: 'utf8',
     maxBuffer: 10 * 1024 * 1024,
   });
-  writeFileSync(mdPath, tailored.trim() + '\n');
+  const finalMarkdown = widenTitleDateGaps(tailored.trim());
+  writeFileSync(mdPath, finalMarkdown + '\n');
   console.log(`Wrote ${mdPath}`);
 
   const pandocArgs = [mdPath, '-o', docxPath];
