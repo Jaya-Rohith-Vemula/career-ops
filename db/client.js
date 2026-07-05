@@ -93,6 +93,14 @@ export function getJobsByCompany(companyId) {
   return db.prepare('SELECT * FROM jobs WHERE companyId = ?').all(companyId);
 }
 
+export function getJob(companyId, jobId) {
+  return db.prepare(
+    `SELECT jobs.*, companies.name AS companyName
+     FROM jobs JOIN companies ON companies.id = jobs.companyId
+     WHERE jobs.companyId = ? AND jobs.jobId = ?`
+  ).get(companyId, jobId);
+}
+
 export function getJobDescriptions(companyId) {
   const rows = db.prepare(
     "SELECT jobId, description FROM jobs WHERE companyId = ? AND description IS NOT NULL AND description != ''"

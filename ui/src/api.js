@@ -134,3 +134,18 @@ export function updateLocationSignal(id, enabled) {
 export function deleteLocationSignal(id) {
   return request(`/location-signals/${id}`, { method: 'DELETE' });
 }
+
+export function tailorResume(companyId, jobId) {
+  return request('/resume/tailor', {
+    method: 'POST',
+    body: JSON.stringify({ companyId, jobId }),
+  });
+}
+
+export function getTailorRun(runId) {
+  return request(`/resume/tailor/${runId}`);
+}
+
+export function getTailorDownloadUrl(runId) {
+  return `/api/resume/tailor/${runId}/download`;
+}

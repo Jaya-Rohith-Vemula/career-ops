@@ -9,10 +9,24 @@ import ycRouter from './routes/yc.js';
 import builtinRouter from './routes/builtin.js';
 import keywordsRouter from './routes/keywords.js';
 import locationSignalsRouter from './routes/location-signals.js';
+import resumeRouter from './routes/resume.js';
 import { seedStackKeywordsIfEmpty, seedLocationSignalsIfEmpty } from '../db/client.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const PORT = process.env.PORT || 3000;
+
+// process.env isn't populated from .env by anything else in this codebase —
+// load it directly so PORT takes effect when set there.
+try {
+  process.loadEnvFile(join(__dirname, '..', '.env'));
+} catch {
+  // .env is optional — real env vars (e.g. in production) take precedence anyway
+}
+
+const PORT = process.env.PORT;
+if (!PORT) {
+  console.error('PORT must be set in .env or the environment');
+  process.exit(1);
+}
 
 seedStackKeywordsIfEmpty();
 seedLocationSignalsIfEmpty();
@@ -28,6 +42,7 @@ app.use('/api/yc', ycRouter);
 app.use('/api/sourcing/builtin', builtinRouter);
 app.use('/api/keywords', keywordsRouter);
 app.use('/api/location-signals', locationSignalsRouter);
+app.use('/api/resume', resumeRouter);
 
 const uiDist = join(__dirname, '..', 'ui', 'dist');
 app.use(express.static(uiDist));

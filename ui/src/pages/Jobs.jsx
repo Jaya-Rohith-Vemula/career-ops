@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { getJobs, getCompanies, updateJobStatus, setJobLocationBucket } from '../api';
+import { getJobs, getCompanies, updateJobStatus, setJobLocationBucket, tailorResume, getTailorRun, getTailorDownloadUrl } from '../api';
 
 const STATUSES = [
   { value: 'yet_to_apply', label: 'Yet to Apply' },
@@ -27,6 +27,53 @@ function StatusCheckbox({ checked, onToggle, variant }) {
   );
 }
 
+function TailorResumeButton({ job }) {
+  const [runId, setRunId] = useState(null);
+  const [status, setStatus] = useState(null); // null | 'running' | 'done' | 'failed'
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    if (!runId || status !== 'running') return;
+    const interval = setInterval(() => {
+      getTailorRun(runId)
+        .then((run) => {
+          setStatus(run.status);
+          if (run.status === 'failed') setError(run.output?.slice(-300) || 'tailoring failed');
+        })
+        .catch((e) => {
+          setStatus('failed');
+          setError(e.message);
+        });
+    }, 2000);
+    return () => clearInterval(interval);
+  }, [runId, status]);
+
+  const start = async () => {
+    setError(null);
+    setStatus('running');
+    try {
+      const { runId } = await tailorResume(job.companyId, job.jobId);
+      setRunId(runId);
+    } catch (e) {
+      setStatus('failed');
+      setError(e.message);
+    }
+  };
+
+  if (status === 'done' && runId) {
+    return <a href={getTailorDownloadUrl(runId)} className="tailor-resume-link">Download .docx</a>;
+  }
+  if (status === 'running') {
+    return <span className="tailor-resume-status">Tailoring…</span>;
+  }
+  return (
+    <>
+      <button onClick={start}>Tailor Resume</button>
+      {status === 'failed' && <span className="tailor-resume-error" title={error}>failed</span>}
+    </>
+  );
+}
+
 function JobsTable({ jobs, onStatusChange, onReassignLocation }) {
   return (
     <table>
@@ -39,6 +86,7 @@ function JobsTable({ jobs, onStatusChange, onReassignLocation }) {
           <th>First seen</th>
           <th>Applied</th>
           <th>Not Related</th>
+          <th>Resume</th>
           {onReassignLocation && <th>Move to</th>}
         </tr>
       </thead>
@@ -73,6 +121,9 @@ function JobsTable({ jobs, onStatusChange, onReassignLocation }) {
                   checked={current === 'not_related'}
                   onToggle={() => onStatusChange(job, current === 'not_related' ? 'yet_to_apply' : 'not_related')}
                 />
+              </td>
+              <td>
+                <TailorResumeButton job={job} />
               </td>
               {onReassignLocation && (
                 <td>
