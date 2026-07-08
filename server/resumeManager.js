@@ -12,7 +12,7 @@ export function startTailorRun(companyId, jobId) {
   const runId = randomUUID();
   const child = spawn(
     'node',
-    ['resume/tailorResume.js', `--companyId=${companyId}`, `--jobId=${jobId}`],
+    ['resume/FT/tailorResume.js', `--companyId=${companyId}`, `--jobId=${jobId}`],
     { cwd: rootDir }
   );
   const run = { id: runId, status: 'running', output: [], result: null, startedAt: new Date().toISOString(), finishedAt: null };

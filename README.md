@@ -11,7 +11,7 @@ runs, plus an AI-assisted resume tailoring tool.
 - Node.js 23+ (needed for `better-sqlite3` native compilation and `process.loadEnvFile`)
 - Xcode Command Line Tools (macOS) — required to compile `better-sqlite3`
 - `pandoc` installed, if you want to use resume tailoring (used to convert the tailored Markdown to `.docx`)
-- An agent CLI installed and authenticated, if you want to use resume tailoring — `resume/tailorResume.js` shells out to one non-interactively rather than calling a model API directly. Supported today: [Claude Code CLI](https://claude.com/claude-code) (`claude`, the default) and [Codex CLI](https://github.com/openai/codex) (`codex`); pick which one with `AGENT_CLI` (see below)
+- An agent CLI installed and authenticated, if you want to use resume tailoring — `resume/FT/tailorResume.js` shells out to one non-interactively rather than calling a model API directly. Supported today: [Claude Code CLI](https://claude.com/claude-code) (`claude`, the default) and [Codex CLI](https://github.com/openai/codex) (`codex`); pick which one with `AGENT_CLI` (see below)
 
 ## Setup
 
@@ -99,25 +99,28 @@ From the dashboard you can:
 Requires an agent CLI installed and authenticated (Claude Code CLI by default,
 or Codex CLI — see `AGENT_CLI` above), `pandoc` installed, and
 `RESUME_DOCUMENT_NAME` set in `.env`. Put your base resume at
-`resume/base_resume.md` and a reference DOCX for formatting at
-`resume/reference.docx`, then trigger tailoring from the UI's job detail view,
+`resume/FT/base_resume.md` and a reference DOCX for formatting at
+`resume/FT/reference.docx`, then trigger tailoring from the UI's job detail view,
 or run:
 
 ```bash
-node resume/tailorResume.js --companyId=<id> --jobId=<jobId>
+node resume/FT/tailorResume.js --companyId=<id> --jobId=<jobId>
 ```
 
-Output is written under `resume/output/`. To use Codex instead of Claude Code:
+Output is written under `resume/FT/output/`. To use Codex instead of Claude Code:
 
 ```bash
-AGENT_CLI=codex node resume/tailorResume.js --companyId=<id> --jobId=<jobId>
+AGENT_CLI=codex node resume/FT/tailorResume.js --companyId=<id> --jobId=<jobId>
 ```
 
 `tailorResume.js` doesn't call any model API directly — it shells out to
 whichever CLI is selected and reads its stdout as the tailored resume text.
 Adding support for another non-interactive agent CLI just means adding an
-entry to the `AGENT_CLIS` map at the top of `resume/tailorResume.js` with the
+entry to the `AGENT_CLIS` map at the top of `resume/FT/tailorResume.js` with the
 binary name and how it takes a prompt.
+
+For a manual job description (no DB record needed), paste it into
+`resume/FT/current-jd.txt` and run `npm run resume:ft`.
 
 ## Other scripts
 

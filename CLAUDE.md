@@ -17,9 +17,9 @@ npm run server                     # API only
 npm --prefix ui run build          # production build; server/index.js then serves ui/dist
 
 # Resume tailoring — full-time (DB-driven, from a discovered job)
-node resume/tailorResume.js --companyId=<id> --jobId=<id>
+node resume/FT/tailorResume.js --companyId=<id> --jobId=<id>
 
-# Resume tailoring — full-time (manual JD, no DB): paste the raw JD into resume/current-jd.txt, then:
+# Resume tailoring — full-time (manual JD, no DB): paste the raw JD into resume/FT/current-jd.txt, then:
 npm run resume:ft
 # title/company are read from "Job Title:"/"Company:" lines if present, else inferred from the JD text via the agent CLI; override with: npm run resume:ft -- --title="..." --company="..."
 
@@ -62,9 +62,9 @@ background subprocesses and enforces one run at a time. `ui/` is a separate Vite
 
 **Self-healing:** `consecutiveZeroDays >= 3` triggers `flaggedForRediscovery = 1` on a company; `dailyRunner.js` re-runs discovery for that company and resets the counter.
 
-**Resume tailoring** (`resume/`): three independent pipelines, all call out to an agent CLI (`AGENT_CLI` env, default `claude`) with a single prompt and pipe the markdown response through `pandoc` to `.docx`.
-- **Full-time, DB-driven** (`resume/tailorResume.js`): takes `--companyId`/`--jobId`, pulls the job description via `getJob()`, rewrites `resume/base_resume.md` (a fully-written resume) to fit that JD, styled with `resume/reference.docx`. Triggered from the UI via `server/resumeManager.js` (`startTailorRun`/`getTailorRun`). Output goes to `resume/output/<companySlug>-<titleSlug>-<jobIdSlug>/`.
-- **Full-time, manual JD** (`resume/tailorResumeFromJD.js`): same base resume/prompt/rules as the DB-driven version, but no DB lookup — paste a raw job description into the fixed inbox file `resume/current-jd.txt`, then run `npm run resume:ft` with no args. Title/company are regex-extracted from "Job Title:"/"Company:" lines if present; if absent, the single tailoring prompt also asks the model to infer them from the JD text and emit a `<<<JOB_META>>>` trailer after the resume, which is parsed out and stripped before saving (one agent call total, not two). Override either with `--title="..."`/`--company="..."`. Requires `RESUME_DOCUMENT_NAME` in `.env` like the DB-driven version. Output goes to `resume/output/<companySlug>-<titleSlug>-<local-timestamp>/`.
+**Resume tailoring** (`resume/`): three independent pipelines under two folders (`resume/FT/` for full-time, `resume/C2C/` for corp-to-corp), all call out to an agent CLI (`AGENT_CLI` env, default `claude`) with a single prompt and pipe the markdown response through `pandoc` to `.docx`.
+- **Full-time, DB-driven** (`resume/FT/tailorResume.js`): takes `--companyId`/`--jobId`, pulls the job description via `getJob()`, rewrites `resume/FT/base_resume.md` (a fully-written resume) to fit that JD, styled with `resume/FT/reference.docx`. Triggered from the UI via `server/resumeManager.js` (`startTailorRun`/`getTailorRun`). Output goes to `resume/FT/output/<companySlug>-<titleSlug>-<jobIdSlug>/`.
+- **Full-time, manual JD** (`resume/FT/tailorResumeFromJD.js`): same base resume/prompt/rules as the DB-driven version, but no DB lookup — paste a raw job description into the fixed inbox file `resume/FT/current-jd.txt`, then run `npm run resume:ft` with no args. Title/company are regex-extracted from "Job Title:"/"Company:" lines if present; if absent, the single tailoring prompt also asks the model to infer them from the JD text and emit a `<<<JOB_META>>>` trailer after the resume, which is parsed out and stripped before saving (one agent call total, not two). Override either with `--title="..."`/`--company="..."`. Requires `RESUME_DOCUMENT_NAME` in `.env` like the DB-driven version. Output goes to `resume/FT/output/<companySlug>-<titleSlug>-<local-timestamp>/`.
 - **C2C** (`resume/C2C/tailorResumeC2C.js`): manual/no-DB, no client name required — you paste a job description (with a "Job Title:" line) into the fixed inbox file `resume/C2C/current-jd.txt`, then run the script with no args; the title is regex-extracted from that line (override with `--title="..."` if the JD has no such line). It fills the curly-brace placeholders in `resume/C2C/base_resume_c2c.md` (a template, not a filled-in resume — different contact info/name than the full-time resume) fresh from that JD each run, styled with `resume/C2C/reference.docx`. Output is always named `Jaya Senior Developer.md`/`.docx`, written to `resume/C2C/output/<local-timestamp>/` (folder named by local run time, e.g. `2026-07-05_14-32-05`).
 
 ## Key Constraints

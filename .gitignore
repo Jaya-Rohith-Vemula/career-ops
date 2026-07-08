@@ -8,9 +8,9 @@ jobs_pipeline.db-wal
 logs/
 all_jobs_export.csv
 glassdoor_best_places_2026.txt
-resume/base_resume.md
-resume/output/
+resume/FT/base_resume.md
+resume/FT/output/
+resume/FT/current-jd.txt
 resume/C2C/*.docx
 resume/C2C/output/
 resume/C2C/current-jd.txt
-resume/current-jd.txt

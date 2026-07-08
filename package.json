@@ -7,7 +7,7 @@
     "daily": "node dailyRunner.js",
     "export": "node exportJobs.js",
     "resume:c2c": "node resume/C2C/tailorResumeC2C.js",
-    "resume:ft": "node resume/tailorResumeFromJD.js",
+    "resume:ft": "node resume/FT/tailorResumeFromJD.js",
     "server": "node server/index.js",
     "ui:dev": "npm --prefix ui run dev",
     "dev": "concurrently -n server,ui -c blue,green \"npm:server\" \"npm:ui:dev\""

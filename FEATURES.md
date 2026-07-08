@@ -56,12 +56,13 @@ Two independent scrapers feed candidate companies into the same review-and-impor
 - `POST /api/sourcing/builtin/import` — insert selected companies as `pending` (deduped by name)
 - Also runnable standalone: `node scrapeBuiltin.js`
 
-## Resume tailoring (`resume/tailorResume.js`, `server/routes/resume.js`, `server/resumeManager.js`)
-- Rewrites a base resume (`resume/base_resume.md`) into a job-specific version for a given `(companyId, jobId)`, driven by a detailed prompt covering formatting, keyword coverage, and plausibility rules
+## Resume tailoring (`resume/FT/tailorResume.js`, `server/routes/resume.js`, `server/resumeManager.js`)
+- Rewrites a base resume (`resume/FT/base_resume.md`) into a job-specific version for a given `(companyId, jobId)`, driven by a detailed prompt covering formatting, keyword coverage, and plausibility rules
 - Agent-CLI agnostic: shells out to whichever non-interactive agent CLI is selected via `AGENT_CLI` (`claude` by default, or `codex`) rather than being hardcoded to one harness — new CLIs can be added to the `AGENT_CLIS` map in `tailorResume.js`
-- Converts the tailored Markdown to `.docx` via `pandoc`, using `resume/reference.docx` for formatting if present
-- Runnable standalone (`node resume/tailorResume.js --companyId=<id> --jobId=<jobId>`) or triggered from the UI, which runs it as a background subprocess via `resumeManager.js`
+- Converts the tailored Markdown to `.docx` via `pandoc`, using `resume/FT/reference.docx` for formatting if present
+- Runnable standalone (`node resume/FT/tailorResume.js --companyId=<id> --jobId=<jobId>`) or triggered from the UI, which runs it as a background subprocess via `resumeManager.js`
 - `POST /api/resume/tailor` — start a tailor run; `GET /api/resume/tailor/:runId` — poll status/output; `GET /api/resume/tailor/:runId/download` — download the resulting `.docx`
+- **Manual-JD variant** (`resume/FT/tailorResumeFromJD.js`, `npm run resume:ft`): same prompt/rules, but reads a pasted job description from `resume/FT/current-jd.txt` instead of the DB, inferring title/company from the JD text when not explicitly labeled
 
 ## Dashboard web app (`server/`, `ui/`)
 Express API (`server/index.js`, serves built `ui/dist` in production) + React/Vite SPA.
