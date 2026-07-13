@@ -83,6 +83,8 @@ Formatting rules:
 - Replace each other "{At least 10 descriptive points}" with at least 10 bullets for that role, written at the seniority level assigned to that role's designation. These three older roles (American Express, Newgen Software, Signovate Technologies) must NOT contain any quantified metric — keep them as plain qualitative statements of what was built, led, or contributed.
 - Never use an em dash (—) anywhere in the output. Use a regular hyphen, a comma, or rephrase the sentence instead.
 - Every bullet point and every PROFESSIONAL SUMMARY sentence must end with a period ("."). Do not omit the trailing period on any bullet. Exception: the SKILLS section entries must NOT end with a period.
+- Write in a natural, human-written style that reflects how an experienced professional would describe their work. Avoid AI-sounding buzzwords, repetitive sentence patterns, generic filler, and overly polished marketing language. Vary sentence openings, action verbs, and structure so the resume reads authentically.
+- Avoid repeating the same action verb within a single experience section. Vary the opening verbs across bullet points (for example: designed, developed, drove, implemented, established, optimized, modernized, automated, improved, coordinated, spearheaded, owned, delivered, enhanced, streamlined) so each bullet reads naturally while accurately reflecting the level of ownership. Do not start multiple consecutive bullets with the same verb unless there is no appropriate alternative.
 
 Content rules:
 - Do not hedge anything with phrases like "working knowledge of", "familiar with", "exposure to", "explored", "experimented with", or "began learning". State every skill and bullet as applied, hands-on experience.
